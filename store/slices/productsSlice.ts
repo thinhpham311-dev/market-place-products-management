@@ -12,6 +12,7 @@ const initialState: ProductsState = {
   inventoryLogs: mockInventoryLogs,
 };
 
+
 const productsSlice = createSlice({
   name: 'products',
   initialState,

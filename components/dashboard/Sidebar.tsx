@@ -1,9 +1,24 @@
 'use client';
 
 import React from 'react';
+import Link from 'next/link';
+import { useAppDispatch, useAppSelector } from '@/store/hooks';
+import { setSidebarTheme, SidebarTheme } from '@/store/settings/themeSlice';
+import { useTranslation } from '@/lib/i18n/useTranslation';
 import { Icons } from '@/components/ui/Icons';
+import { SIDEBAR_THEMES } from './sidebar/sidebarThemes';
+import { SidebarBranchCard, SidebarFooterWidgets } from './sidebar/SidebarWidgets';
 
 export type TabType = 'overview' | 'products' | 'inventory' | 'categories' | 'analytics' | 'settings';
+
+export const TAB_ROUTES: Record<TabType, string> = {
+  overview: '/?tab=overview',
+  products: '/products?tab=all',
+  inventory: '/inventory?tab=stock',
+  categories: '/categories?tab=all',
+  analytics: '/analytics?tab=overview',
+  settings: '/settings?tab=general',
+};
 
 interface SidebarProps {
   activeTab: TabType;
@@ -17,6 +32,7 @@ interface SidebarProps {
     lowStock: number;
     categories: number;
   };
+  onLogout: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -27,14 +43,36 @@ export const Sidebar: React.FC<SidebarProps> = ({
   mobileOpen,
   setMobileOpen,
   productCounts,
+  onLogout,
 }) => {
-  const navItems = [
-    { id: 'overview', label: 'Tổng quan', icon: Icons.Dashboard, badge: null },
-    { id: 'products', label: 'Danh sách sản phẩm', icon: Icons.Package, badge: productCounts.total },
-    { id: 'inventory', label: 'Quản lý tồn kho', icon: Icons.Boxes, badge: productCounts.lowStock > 0 ? productCounts.lowStock : null, badgeVariant: 'danger' },
-    { id: 'categories', label: 'Danh mục & Nhãn', icon: Icons.Layers, badge: productCounts.categories },
-    { id: 'analytics', label: 'Báo cáo doanh số', icon: Icons.BarChart3, badge: 'Mới', badgeVariant: 'primary' },
-    { id: 'settings', label: 'Cài đặt gian hàng', icon: Icons.Settings, badge: null },
+  const dispatch = useAppDispatch();
+  const { t } = useTranslation();
+  const sidebarTheme: SidebarTheme = useAppSelector(
+    (s) => s.settings?.theme?.sidebarTheme ?? 'adaptive'
+  );
+  const styles = SIDEBAR_THEMES[sidebarTheme] || SIDEBAR_THEMES.adaptive;
+
+  const navItems: {
+    id: TabType;
+    href: string;
+    label: string;
+    icon: typeof Icons.Dashboard;
+    badge: number | string | null;
+    badgeVariant?: string;
+  }[] = [
+    { id: 'overview', href: TAB_ROUTES.overview, label: t('nav.overview'), icon: Icons.Dashboard, badge: null },
+    { id: 'products', href: TAB_ROUTES.products, label: t('nav.products'), icon: Icons.Package, badge: productCounts.total },
+    {
+      id: 'inventory',
+      href: TAB_ROUTES.inventory,
+      label: t('nav.inventory'),
+      icon: Icons.Boxes,
+      badge: productCounts.lowStock > 0 ? productCounts.lowStock : null,
+      badgeVariant: 'danger',
+    },
+    { id: 'categories', href: TAB_ROUTES.categories, label: t('nav.categories'), icon: Icons.Layers, badge: productCounts.categories },
+    { id: 'analytics', href: TAB_ROUTES.analytics, label: t('nav.analytics'), icon: Icons.BarChart3, badge: t('nav.badge_new'), badgeVariant: 'primary' },
+    { id: 'settings', href: TAB_ROUTES.settings, label: t('nav.settings'), icon: Icons.Settings, badge: null },
   ];
 
   const handleSelectTab = (id: TabType) => {
@@ -43,28 +81,31 @@ export const Sidebar: React.FC<SidebarProps> = ({
   };
 
   const sidebarContent = (
-    <div className="flex flex-col h-full bg-slate-900 text-slate-300 select-none">
+    <div className={`flex flex-col h-full select-none transition-colors duration-200 ${styles.container}`}>
       {/* Brand Header */}
-      <div className="h-16 flex items-center justify-between px-4 border-b border-slate-800">
-        <div className="flex items-center gap-3 overflow-hidden">
+      <div className={`h-16 flex items-center justify-between px-4 border-b ${styles.headerBorder}`}>
+        <Link
+          href="/"
+          onClick={() => handleSelectTab('overview')}
+          className="flex items-center gap-3 overflow-hidden"
+        >
           <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-500 flex items-center justify-center text-white font-bold text-xl shadow-lg shadow-indigo-500/20 shrink-0">
             <Icons.ShoppingBag size={22} className="text-white" />
           </div>
           {!collapsed && (
             <div className="flex flex-col truncate">
-              <span className="font-bold text-white text-base tracking-tight leading-tight">
-                NovaShop Admin
+              <span className={`font-bold text-base tracking-tight leading-tight ${styles.brandTitle}`}>
+                Market Mini Admin
               </span>
-              <span className="text-[11px] text-slate-400">E-commerce Hub</span>
+              <span className={`text-[11px] ${styles.brandSub}`}>E-commerce Hub</span>
             </div>
           )}
-        </div>
-        
+        </Link>
+
         {/* Collapse toggle (desktop) */}
         <button
           onClick={() => setCollapsed(!collapsed)}
-          className="hidden md:flex p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
-          title={collapsed ? 'Mở rộng menu' : 'Thu gọn menu'}
+          className={`hidden md:flex p-1.5 rounded-lg transition-colors cursor-pointer ${styles.iconBtn}`}
         >
           <Icons.ChevronLeft
             size={18}
@@ -75,50 +116,32 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {/* Close button (mobile) */}
         <button
           onClick={() => setMobileOpen(false)}
-          className="md:hidden p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800"
+          className={`md:hidden p-1.5 rounded-lg ${styles.iconBtn}`}
         >
           <Icons.X size={20} />
         </button>
       </div>
 
       {/* Store Quick Switcher */}
-      <div className="p-3 border-b border-slate-800/80">
-        <div
-          className={`flex items-center gap-3 p-2.5 rounded-xl bg-slate-800/60 border border-slate-700/50 hover:bg-slate-800 transition-colors cursor-pointer ${
-            collapsed ? 'justify-center' : 'justify-between'
-          }`}
-        >
-          <div className="flex items-center gap-2.5 truncate">
-            <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 ring-4 ring-emerald-500/20 shrink-0" />
-            {!collapsed && (
-              <div className="truncate text-left">
-                <p className="text-xs font-semibold text-white truncate">Chi nhánh Hà Nội (Main)</p>
-                <p className="text-[10px] text-slate-400 truncate">Kho tổng miền Bắc</p>
-              </div>
-            )}
-          </div>
-          {!collapsed && <Icons.ChevronDown size={14} className="text-slate-400 shrink-0" />}
-        </div>
-      </div>
+      <SidebarBranchCard collapsed={collapsed} styles={styles} />
 
       {/* Navigation Links */}
       <div className="flex-1 py-4 px-3 space-y-1.5 overflow-y-auto custom-scrollbar">
         {!collapsed && (
-          <p className="px-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-2">
-            Quản lý bán hàng
+          <p className={`px-3 text-[11px] font-semibold uppercase tracking-wider mb-2 ${styles.sectionLabel}`}>
+            {t('nav.sales_management')}
           </p>
         )}
         {navItems.map((item) => {
           const Icon = item.icon;
           const isActive = activeTab === item.id;
           return (
-            <button
+            <Link
               key={item.id}
-              onClick={() => handleSelectTab(item.id as TabType)}
+              href={item.href}
+              onClick={() => handleSelectTab(item.id)}
               className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all group relative cursor-pointer ${
-                isActive
-                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
-                  : 'text-slate-400 hover:text-white hover:bg-slate-800/70'
+                isActive ? styles.navActive : styles.navInactive
               } ${collapsed ? 'justify-center px-2' : 'justify-between'}`}
               title={collapsed ? item.label : undefined}
             >
@@ -126,7 +149,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <Icon
                   size={20}
                   className={`shrink-0 transition-transform group-hover:scale-110 ${
-                    isActive ? 'text-white' : 'text-slate-400 group-hover:text-white'
+                    isActive ? styles.navIconActive : styles.navIconInactive
                   }`}
                 />
                 {!collapsed && <span className="truncate">{item.label}</span>}
@@ -136,10 +159,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <span
                   className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
                     item.badgeVariant === 'danger'
-                      ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                      ? 'bg-rose-500/20 text-rose-500 dark:text-rose-300 border border-rose-500/30'
                       : item.badgeVariant === 'primary'
-                      ? 'bg-indigo-400/20 text-indigo-300 border border-indigo-400/30'
-                      : 'bg-slate-800 text-slate-300 border border-slate-700'
+                      ? 'bg-indigo-500/20 text-indigo-600 dark:text-indigo-300 border border-indigo-400/30'
+                      : styles.badgeDefault
                   }`}
                 >
                   {item.badge}
@@ -152,27 +175,22 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   {item.label}
                 </div>
               )}
-            </button>
+            </Link>
           );
         })}
       </div>
 
-      {/* Store status footer */}
-      {!collapsed && (
-        <div className="p-4 border-t border-slate-800 bg-slate-950/40 m-3 rounded-2xl border border-slate-800/80">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-semibold text-slate-200">Kênh đồng bộ</span>
-            <span className="text-[10px] text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded-md font-medium">
-              Hoạt động tốt
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-[11px] px-2 py-1 rounded bg-slate-800 text-slate-300 border border-slate-700">Shopee</span>
-            <span className="text-[11px] px-2 py-1 rounded bg-slate-800 text-slate-300 border border-slate-700">TikTok Shop</span>
-            <span className="text-[11px] px-2 py-1 rounded bg-slate-800 text-slate-300 border border-slate-700">Web</span>
-          </div>
-        </div>
-      )}
+      {/* Footer Widgets (Color Swatches, Sync Channels, Logout) */}
+      <SidebarFooterWidgets
+        collapsed={collapsed}
+        sidebarTheme={sidebarTheme}
+        onSelectTheme={(theme) => dispatch(setSidebarTheme(theme))}
+        styles={styles}
+        onLogout={() => {
+          setMobileOpen(false);
+          onLogout();
+        }}
+      />
     </div>
   );
 

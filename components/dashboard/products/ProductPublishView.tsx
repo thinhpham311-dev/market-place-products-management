@@ -1,41 +1,59 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Product } from '@/types/product';
-import { Modal } from '@/components/ui/Modal';
+import { useAppDispatch } from '@/store/hooks';
+import { publishProduct } from '@/store/slices/productsSlice';
+import { setActiveTab, showToast } from '@/store/slices/uiSlice';
+import { useTranslation } from '@/lib/i18n/useTranslation';
 import { Button } from '@/components/ui/Button';
 import { Icons } from '@/components/ui/Icons';
 
-interface PublishModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  product: Product | null;
-  onConfirmPublish: (
-    productId: string,
-    channels: ('shopee' | 'tiktok' | 'lazada' | 'website')[],
-    publishMode: 'instant' | 'scheduled',
-    scheduledTime?: string
-  ) => void;
+interface ProductPublishViewProps {
+  product: Product;
 }
 
-export const PublishModal: React.FC<PublishModalProps> = ({
-  isOpen,
-  onClose,
-  product,
-  onConfirmPublish,
-}) => {
-  const [selectedChannels, setSelectedChannels] = useState<('shopee' | 'tiktok' | 'lazada' | 'website')[]>([
-    'website',
-    'shopee',
-    'tiktok',
-  ]);
-  const [publishMode, setPublishMode] = useState<'instant' | 'scheduled'>('instant');
+const CHANNEL_META = {
+  website: { name: 'Website Shop', color: 'bg-indigo-500', desc: '0% phí sàn, tự động cập nhật ngay' },
+  shopee: { name: 'Shopee Mall / Shop', color: 'bg-orange-500', desc: 'Đồng bộ danh mục Shopee & kho tự động' },
+  tiktok: { name: 'TikTok Shop VN', color: 'bg-slate-900', desc: 'Sẵn sàng gắn giỏ hàng Livestream & Video' },
+  lazada: { name: 'Lazada Vietnam', color: 'bg-blue-600', desc: 'Đồng bộ SKU và bảng giá khuyến mãi' },
+};
+
+export const ProductPublishView: React.FC<ProductPublishViewProps> = ({ product }) => {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const dispatch = useAppDispatch();
+  const { tp } = useTranslation();
+
+  const [selectedChannels, setSelectedChannels] = useState<
+    ('shopee' | 'tiktok' | 'lazada' | 'website')[]
+  >(['website', 'shopee', 'tiktok']);
+
+  const publishMode: 'instant' | 'scheduled' =
+    searchParams.get('tab') === 'scheduled' ? 'scheduled' : 'instant';
+
+  const setPublishMode = useCallback(
+    (mode: 'instant' | 'scheduled') => {
+      const params = new URLSearchParams(searchParams.toString());
+      params.set('tab', mode);
+      router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+    },
+    [pathname, router, searchParams]
+  );
+
+  useEffect(() => {
+    if (!searchParams.get('tab')) {
+      setPublishMode('instant');
+    }
+  }, [searchParams, setPublishMode]);
+
   const [scheduleDate, setScheduleDate] = useState('2026-10-10');
   const [scheduleTime, setScheduleTime] = useState('00:00');
   const [isPublishing, setIsPublishing] = useState(false);
   const [publishStep, setPublishStep] = useState(0);
-
-  if (!product) return null;
 
   const toggleChannel = (ch: 'shopee' | 'tiktok' | 'lazada' | 'website') => {
     if (selectedChannels.includes(ch)) {
@@ -49,19 +67,12 @@ export const PublishModal: React.FC<PublishModalProps> = ({
     }
   };
 
-  const channelMeta = {
-    website: { name: 'Website Shop', color: 'bg-indigo-500', desc: '0% phí sàn, tự động cập nhật ngay' },
-    shopee: { name: 'Shopee Mall / Shop', color: 'bg-orange-500', desc: 'Đồng bộ danh mục Shopee & kho tự động' },
-    tiktok: { name: 'TikTok Shop VN', color: 'bg-slate-900', desc: 'Sẵn sàng gắn giỏ hàng Livestream & Video' },
-    lazada: { name: 'Lazada Vietnam', color: 'bg-blue-600', desc: 'Đồng bộ SKU và bảng giá khuyến mãi' },
-  };
-
   const checklist = [
     { label: 'Tên & SKU sản phẩm chuẩn', valid: !!product.name && !!product.sku },
     { label: 'Hình ảnh đại diện rõ nét', valid: !!product.thumbnail },
     { label: 'Giá bán & cấu hình giá vốn', valid: product.price > 0 },
     { label: 'Đã phân loại danh mục ngành hàng', valid: !!product.category },
-    { label: 'Tồn kho khả dụng', valid: product.stock > 0, warning: product.stock === 0 },
+    { label: 'Tồn kho khả dụng', valid: product.stock > 0 },
   ];
 
   const handleExecutePublish = () => {
@@ -76,48 +87,67 @@ export const PublishModal: React.FC<PublishModalProps> = ({
           setIsPublishing(false);
           setPublishStep(0);
           const fullSchedule = `${scheduleDate} ${scheduleTime}`;
-          onConfirmPublish(
-            product.id,
-            selectedChannels,
-            publishMode,
-            publishMode === 'scheduled' ? fullSchedule : undefined
+          dispatch(
+            publishProduct({
+              productId: product.id,
+              channels: selectedChannels,
+              publishMode,
+              scheduledTime: publishMode === 'scheduled' ? fullSchedule : undefined,
+            })
           );
-          onClose();
+
+          if (publishMode === 'instant') {
+            dispatch(
+              showToast(
+                `Đã xuất bản thành công "${tp(product.name)}" lên ${selectedChannels
+                  .join(', ')
+                  .toUpperCase()}!`
+              )
+            );
+          } else {
+            dispatch(
+              showToast(`Đã đặt lịch hẹn xuất bản "${tp(product.name)}" vào ${fullSchedule}!`)
+            );
+          }
+          dispatch(setActiveTab('products'));
+          router.push('/products');
         }, 600);
       }, 700);
     }, 600);
   };
 
   return (
-    <Modal
-      isOpen={isOpen}
-      onClose={isPublishing ? () => {} : onClose}
-      title="Xuất bản sản phẩm đa kênh (Publish)"
-      description="Đẩy sản phẩm lên các sàn thương mại điện tử và website chính thức"
-      maxWidth="2xl"
-      footer={
-        <>
-          <Button variant="outline" size="sm" onClick={onClose} disabled={isPublishing}>
-            Hủy bỏ
-          </Button>
-          <Button
-            variant="primary"
-            size="sm"
-            onClick={handleExecutePublish}
-            isLoading={isPublishing}
-            leftIcon={<Icons.Rocket size={15} />}
+    <div className="space-y-6 animate-fade-in max-w-2xl mx-auto">
+      {/* Page Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-start gap-3">
+          <button
+            type="button"
+            disabled={isPublishing}
+            onClick={() => router.back()}
+            className="mt-0.5 p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer disabled:opacity-50"
+            title="Quay lại"
           >
-            {publishMode === 'instant' ? 'Xuất bản ngay' : 'Đặt lịch hẹn giờ đăng'}
-          </Button>
-        </>
-      }
-    >
-      <div className="space-y-5 text-slate-700 dark:text-slate-300">
+            <Icons.ChevronLeft size={18} />
+          </button>
+          <div>
+            <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
+              Xuất bản sản phẩm đa kênh (Publish)
+            </h1>
+            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
+              Đẩy sản phẩm lên các sàn thương mại điện tử và website chính thức
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Content Card */}
+      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm p-5 sm:p-6 space-y-5 text-slate-700 dark:text-slate-300">
         {/* Product Preview Card */}
         <div className="flex items-center gap-3.5 p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
           <img
             src={product.thumbnail}
-            alt={product.name}
+            alt={tp(product.name)}
             className="w-14 h-14 rounded-xl object-cover border border-slate-200 dark:border-slate-700 shrink-0"
           />
           <div className="min-w-0 flex-1">
@@ -125,14 +155,18 @@ export const PublishModal: React.FC<PublishModalProps> = ({
               {product.sku}
             </span>
             <h4 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white truncate">
-              {product.name}
+              {tp(product.name)}
             </h4>
             <div className="flex items-center gap-2 mt-1 text-xs">
               <span className="font-bold text-slate-900 dark:text-white">
-                {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(product.price)}
+                {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(
+                  product.price
+                )}
               </span>
               <span>•</span>
-              <span className="text-slate-500">Tồn kho: <strong>{product.stock} cái</strong></span>
+              <span className="text-slate-500">
+                Tồn kho: <strong>{product.stock} cái</strong>
+              </span>
             </div>
           </div>
         </div>
@@ -145,7 +179,7 @@ export const PublishModal: React.FC<PublishModalProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
             {(['website', 'shopee', 'tiktok', 'lazada'] as const).map((ch) => {
               const isSelected = selectedChannels.includes(ch);
-              const info = channelMeta[ch];
+              const info = CHANNEL_META[ch];
 
               return (
                 <div
@@ -159,7 +193,9 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                 >
                   <div
                     className={`w-5 h-5 rounded-lg flex items-center justify-center text-white shrink-0 mt-0.5 ${
-                      isSelected ? 'bg-indigo-600' : 'border border-slate-300 dark:border-slate-600'
+                      isSelected
+                        ? 'bg-indigo-600'
+                        : 'border border-slate-300 dark:border-slate-600'
                     }`}
                   >
                     {isSelected && <Icons.Check size={13} />}
@@ -225,7 +261,6 @@ export const PublishModal: React.FC<PublishModalProps> = ({
             </button>
           </div>
 
-          {/* Schedule Inputs if selected */}
           {publishMode === 'scheduled' && (
             <div className="mt-3 p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 grid grid-cols-1 sm:grid-cols-2 gap-3 animate-in fade-in duration-150">
               <div>
@@ -267,7 +302,13 @@ export const PublishModal: React.FC<PublishModalProps> = ({
                 ) : (
                   <Icons.AlertCircle size={14} className="text-amber-500 shrink-0" />
                 )}
-                <span className={item.valid ? 'text-slate-700 dark:text-slate-300' : 'text-amber-600 font-medium'}>
+                <span
+                  className={
+                    item.valid
+                      ? 'text-slate-700 dark:text-slate-300'
+                      : 'text-amber-600 font-medium'
+                  }
+                >
                   {item.label}
                 </span>
               </div>
@@ -297,7 +338,28 @@ export const PublishModal: React.FC<PublishModalProps> = ({
             </div>
           </div>
         )}
+
+        {/* Footer Actions */}
+        <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-end gap-2.5">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => router.back()}
+            disabled={isPublishing}
+          >
+            Hủy bỏ
+          </Button>
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={handleExecutePublish}
+            isLoading={isPublishing}
+            leftIcon={<Icons.Rocket size={15} />}
+          >
+            {publishMode === 'instant' ? 'Xuất bản ngay' : 'Đặt lịch hẹn giờ đăng'}
+          </Button>
+        </div>
       </div>
-    </Modal>
+    </div>
   );
 };

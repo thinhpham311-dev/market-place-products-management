@@ -1,5 +1,8 @@
+'use client';
+
 import React from 'react';
 import { ProductStatus } from '@/types/product';
+import { useTranslation } from '@/lib/i18n/useTranslation';
 
 interface BadgeProps {
   children: React.ReactNode;
@@ -39,33 +42,35 @@ export const Badge: React.FC<BadgeProps> = ({
 };
 
 export const StatusBadge: React.FC<{ status: ProductStatus }> = ({ status }) => {
+  const { t } = useTranslation();
+
   switch (status) {
     case 'active':
       return (
         <Badge variant="success">
           <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-          Đang bán
+          {t('products.tab_active')}
         </Badge>
       );
     case 'out_of_stock':
       return (
         <Badge variant="danger">
           <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
-          Hết hàng
+          {t('products.tab_out_of_stock')}
         </Badge>
       );
     case 'draft':
       return (
         <Badge variant="warning">
           <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-          Bản nháp
+          {t('products.tab_draft')}
         </Badge>
       );
     case 'archived':
       return (
         <Badge variant="neutral">
           <span className="w-1.5 h-1.5 rounded-full bg-gray-400" />
-          Tạm ẩn
+          {t('products.tab_archived')}
         </Badge>
       );
     default:

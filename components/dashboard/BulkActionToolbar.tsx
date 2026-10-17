@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { useTranslation } from '@/lib/i18n/useTranslation';
 import { Icons } from '@/components/ui/Icons';
 import { Button } from '@/components/ui/Button';
 import { ProductStatus } from '@/types/product';
@@ -22,6 +23,8 @@ export const BulkActionToolbar: React.FC<BulkActionToolbarProps> = ({
   onDeleteSelected,
   onExportSelected,
 }) => {
+  const { t } = useTranslation();
+
   if (selectedCount === 0) return null;
 
   return (
@@ -30,7 +33,9 @@ export const BulkActionToolbar: React.FC<BulkActionToolbarProps> = ({
         <span className="w-6 h-6 rounded-full bg-indigo-600 text-white text-xs font-bold flex items-center justify-center">
           {selectedCount}
         </span>
-        <span className="text-xs font-medium text-slate-300 hidden sm:inline">đã chọn</span>
+        <span className="text-xs font-medium text-slate-300 hidden sm:inline">
+          {t('bulk.selected')}
+        </span>
       </div>
 
       <div className="flex items-center gap-2 shrink-0">
@@ -41,7 +46,7 @@ export const BulkActionToolbar: React.FC<BulkActionToolbarProps> = ({
           onClick={onBulkPublish}
           leftIcon={<Icons.Rocket size={14} />}
         >
-          Xuất bản ({selectedCount})
+          {t('bulk.publish')} ({selectedCount})
         </Button>
 
         <Button
@@ -51,7 +56,7 @@ export const BulkActionToolbar: React.FC<BulkActionToolbarProps> = ({
           onClick={() => onUpdateStatus('archived')}
         >
           <span className="w-2 h-2 rounded-full bg-slate-400 mr-1.5" />
-          Tạm ẩn
+          {t('bulk.archive')}
         </Button>
 
         <Button
@@ -61,7 +66,7 @@ export const BulkActionToolbar: React.FC<BulkActionToolbarProps> = ({
           onClick={onExportSelected}
           leftIcon={<Icons.Download size={14} />}
         >
-          Xuất Excel
+          {t('bulk.export_excel')}
         </Button>
 
         <Button
@@ -71,14 +76,14 @@ export const BulkActionToolbar: React.FC<BulkActionToolbarProps> = ({
           onClick={onDeleteSelected}
           leftIcon={<Icons.Trash2 size={14} />}
         >
-          Xóa
+          {t('bulk.delete')}
         </Button>
       </div>
 
       <button
         onClick={onClearSelection}
         className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 ml-1 shrink-0"
-        title="Bỏ chọn tất cả"
+        title={t('bulk.clear_selection')}
       >
         <Icons.X size={16} />
       </button>
