@@ -2,6 +2,7 @@
 
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { useHydrated } from '@/store/StoreProvider';
 import { Product, ProductCategory, ProductStatus, ProductFilterState } from '@/types/product';
 import { BulkActionToolbar } from './BulkActionToolbar';
 import { ProductFilterBar } from './product-list/ProductFilterBar';
@@ -54,20 +55,24 @@ export const ProductList: React.FC<ProductListProps> = ({
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const isHydrated = useHydrated();
 
-  // Read tab & filters from URL search params
-  const rawTab = searchParams.get('tab') as ProductStatus | 'all' | null;
+  // Read tab & filters from URL search params after hydration
+  const rawTab = isHydrated ? (searchParams.get('tab') as ProductStatus | 'all' | null) : 'all';
   const filterStatus: ProductStatus | 'all' =
     rawTab && VALID_STATUS_TABS.includes(rawTab) ? rawTab : 'all';
 
-  const viewMode: 'table' | 'grid' = searchParams.get('view') === 'grid' ? 'grid' : 'table';
-  const filterCategory: string = searchParams.get('category') || 'all';
-  const rawStock = searchParams.get('stock');
+  const viewMode: 'table' | 'grid' =
+    isHydrated && searchParams.get('view') === 'grid' ? 'grid' : 'table';
+  const filterCategory: string = (isHydrated && searchParams.get('category')) || 'all';
+  const rawStock = isHydrated ? searchParams.get('stock') : null;
   const filterStockStatus: 'all' | 'in_stock' | 'low_stock' | 'out_of_stock' =
     rawStock === 'in_stock' || rawStock === 'low_stock' || rawStock === 'out_of_stock'
       ? rawStock
       : 'all';
-  const rawSort = searchParams.get('sort') as ProductFilterState['sortBy'] | null;
+  const rawSort = isHydrated
+    ? (searchParams.get('sort') as ProductFilterState['sortBy'] | null)
+    : null;
   const sortBy: ProductFilterState['sortBy'] = rawSort || 'created';
 
   const updateUrlParams = useCallback(

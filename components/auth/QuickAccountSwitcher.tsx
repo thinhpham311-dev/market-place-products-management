@@ -21,7 +21,7 @@ export const QuickAccountSwitcher: React.FC<QuickAccountSwitcherProps> = ({
       <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
         {t('login.quick_demo_title')}
       </p>
-      <div className="grid grid-cols-1 gap-2 max-h-56 overflow-y-auto pr-1">
+      <div className="grid grid-cols-1 gap-2 max-h-56 overflow-y-auto custom-scrollbar pr-1">
         {accounts.map((acc) => (
           <button
             key={acc.email}

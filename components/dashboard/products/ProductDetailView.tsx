@@ -3,10 +3,14 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Product } from '@/types/product';
+import { useAppDispatch } from '@/store/hooks';
+import { deleteProduct } from '@/store/slices/productsSlice';
+import { showToast } from '@/store/slices/uiSlice';
 import { useTranslation } from '@/lib/i18n/useTranslation';
 import { Button } from '@/components/ui/Button';
 import { StatusBadge } from '@/components/ui/Badge';
 import { Icons } from '@/components/ui/Icons';
+import { DeleteProductModal } from './DeleteProductModal';
 
 interface ProductDetailViewProps {
   product: Product;
@@ -14,17 +18,26 @@ interface ProductDetailViewProps {
 
 export const ProductDetailView: React.FC<ProductDetailViewProps> = ({ product }) => {
   const router = useRouter();
+  const dispatch = useAppDispatch();
   const { t, tp, tc } = useTranslation();
   const [activeImage, setActiveImage] = useState<string>('');
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   const currentImage = activeImage || product.thumbnail;
   const formatCurrency = (val: number) =>
     new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(val);
 
+  const handleConfirmDelete = () => {
+    dispatch(deleteProduct(product.id));
+    dispatch(showToast(t('delete_modal.success_toast')));
+    setShowDeleteModal(false);
+    router.push('/products');
+  };
+
   return (
     <div className="space-y-6 animate-fade-in max-w-4xl mx-auto">
-      {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      {/* Page Header (Sticky below Header) */}
+      <div className="sticky top-16 z-20 bg-slate-50/95 dark:bg-slate-950/95 backdrop-blur-md py-3 -mx-2 px-2 border-b border-slate-200/70 dark:border-slate-800/70 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-start gap-3">
           <button
             type="button"
@@ -45,8 +58,13 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({ product })
         </div>
 
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => router.back()}>
-            {t('table.cancel')}
+          <Button
+            variant="danger"
+            size="sm"
+            onClick={() => setShowDeleteModal(true)}
+            leftIcon={<Icons.Trash2 size={15} />}
+          >
+            {t('table.delete_product')}
           </Button>
           <Button
             variant="secondary"
@@ -81,7 +99,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({ product })
             </div>
 
             {product.images && product.images.length > 1 && (
-              <div className="flex items-center gap-2 overflow-x-auto pb-1">
+              <div className="flex items-center gap-2 overflow-x-auto custom-scrollbar scrollbar-thin pb-1">
                 {product.images.map((img, idx) => (
                   <button
                     key={idx}
@@ -167,7 +185,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({ product })
               <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs">
                 <span className="text-slate-400 block text-[11px]">{t('table.col_sold')}</span>
                 <span className="text-base font-bold text-slate-900 dark:text-white mt-0.5 block">
-                  {product.soldCount.toLocaleString()}
+                  {product.soldCount.toLocaleString('vi-VN')}
                 </span>
                 <span className="text-[10px] text-emerald-600 font-medium">
                   {formatCurrency(product.revenue)}
@@ -208,6 +226,13 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({ product })
           </div>
         </div>
       </div>
+
+      <DeleteProductModal
+        isOpen={showDeleteModal}
+        productsToDelete={[product]}
+        onClose={() => setShowDeleteModal(false)}
+        onConfirm={handleConfirmDelete}
+      />
     </div>
   );
 };

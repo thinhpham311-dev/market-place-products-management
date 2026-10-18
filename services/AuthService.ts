@@ -1,11 +1,22 @@
 import ApiService from "./ApiService";
 import { IUser } from "@/interfaces/user";
+import {
+  NEXT_PUBLIC_API_KEY,
+  REQUEST_HEADER_API_KEY,
+} from "@/constants/api/api.constant";
+
+export const NEXT_SIGNIN_API_ENDPOINT = "/api/shop/signin";
+export const NEXT_SIGNOUT_API_ENDPOINT = "/api/shop/signout";
 
 export async function apiSignIn(data: IUser) {
   return ApiService.fetchData({
-    url: "/sign-in",
+    url: "/shop/signin",
     method: "post",
     data,
+    headers: {
+      [REQUEST_HEADER_API_KEY]:
+        process.env.NEXT_PUBLIC_API_KEY || NEXT_PUBLIC_API_KEY,
+    },
   });
 }
 
@@ -17,11 +28,15 @@ export async function apiSignUp(data: IUser) {
   });
 }
 
-export async function apiSignOut(data: IUser) {
+export async function apiSignOut(data?: IUser) {
   return ApiService.fetchData({
-    url: "/sign-out",
+    url: "/shop/signout",
     method: "post",
-    data,
+    data: data || {},
+    headers: {
+      [REQUEST_HEADER_API_KEY]:
+        process.env.NEXT_PUBLIC_API_KEY || NEXT_PUBLIC_API_KEY,
+    },
   });
 }
 

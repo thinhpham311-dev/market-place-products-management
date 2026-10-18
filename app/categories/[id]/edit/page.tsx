@@ -3,7 +3,7 @@
 import React from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
-import { updateCategory } from '@/store/slices/categoriesSlice';
+import { updateCategory, deleteCategory } from '@/store/slices/categoriesSlice';
 import { setActiveTab, showToast } from '@/store/slices/uiSlice';
 import { Button } from '@/components/ui/Button';
 import { Icons } from '@/components/ui/Icons';
@@ -43,5 +43,12 @@ export default function EditCategoryPage() {
     router.push('/categories');
   };
 
-  return <CategoryFormView initialData={category} onSubmit={handleSubmit} />;
+  const handleDelete = () => {
+    dispatch(deleteCategory(category.id));
+    dispatch(showToast(`Đã xóa danh mục "${category.name}" thành công.`));
+    dispatch(setActiveTab('categories'));
+    router.push('/categories');
+  };
+
+  return <CategoryFormView initialData={category} onSubmit={handleSubmit} onDelete={handleDelete} />;
 }

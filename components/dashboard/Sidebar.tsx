@@ -81,16 +81,21 @@ export const Sidebar: React.FC<SidebarProps> = ({
   };
 
   const sidebarContent = (
-    <div className={`flex flex-col h-full select-none transition-colors duration-200 ${styles.container}`}>
+    <div className={`relative flex flex-col h-full select-none transition-colors duration-200 ${styles.container}`}>
       {/* Brand Header */}
-      <div className={`h-16 flex items-center justify-between px-4 border-b ${styles.headerBorder}`}>
+      <div
+        className={`h-16 flex items-center justify-between border-b ${styles.headerBorder} ${
+          collapsed ? 'px-2 gap-1' : 'px-4 gap-3'
+        }`}
+      >
         <Link
           href="/"
           onClick={() => handleSelectTab('overview')}
-          className="flex items-center gap-3 overflow-hidden"
+          className={`flex items-center gap-3 ${collapsed ? 'shrink-0' : 'min-w-0 overflow-hidden'}`}
+          title={collapsed ? 'Market Mini Admin' : undefined}
         >
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-500 flex items-center justify-center text-white font-bold text-xl shadow-lg shadow-indigo-500/20 shrink-0">
-            <Icons.ShoppingBag size={22} className="text-white" />
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-500 flex items-center justify-center text-white font-bold text-xl shadow-lg shadow-indigo-500/20 shrink-0">
+            <Icons.ShoppingBag size={20} className="text-white shrink-0" />
           </div>
           {!collapsed && (
             <div className="flex flex-col truncate">
@@ -102,21 +107,24 @@ export const Sidebar: React.FC<SidebarProps> = ({
           )}
         </Link>
 
-        {/* Collapse toggle (desktop) */}
+        {/* Collapse / Open toggle (desktop) - always visible */}
         <button
+          type="button"
           onClick={() => setCollapsed(!collapsed)}
-          className={`hidden md:flex p-1.5 rounded-lg transition-colors cursor-pointer ${styles.iconBtn}`}
+          className={`hidden md:flex items-center justify-center w-7 h-7 rounded-lg transition-colors cursor-pointer shrink-0 ${styles.iconBtn}`}
+          title={collapsed ? 'Mở rộng thanh điều hướng' : 'Thu gọn thanh điều hướng'}
         >
           <Icons.ChevronLeft
             size={18}
-            className={`transition-transform duration-200 ${collapsed ? 'rotate-180' : ''}`}
+            className={`transition-transform duration-200 shrink-0 ${collapsed ? 'rotate-180' : ''}`}
           />
         </button>
 
         {/* Close button (mobile) */}
         <button
+          type="button"
           onClick={() => setMobileOpen(false)}
-          className={`md:hidden p-1.5 rounded-lg ${styles.iconBtn}`}
+          className={`md:hidden p-1.5 rounded-lg shrink-0 ${styles.iconBtn}`}
         >
           <Icons.X size={20} />
         </button>
@@ -199,7 +207,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {/* Desktop Sidebar */}
       <aside
         className={`hidden md:block shrink-0 h-screen sticky top-0 transition-all duration-300 z-30 ${
-          collapsed ? 'w-20' : 'w-64'
+          collapsed ? 'w-[84px]' : 'w-64'
         }`}
       >
         {sidebarContent}

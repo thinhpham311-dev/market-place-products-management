@@ -18,16 +18,18 @@ export const InventoryStockTable: React.FC<InventoryStockTableProps> = ({
   const { t, tp, tc } = useTranslation();
 
   return (
-    <div className="overflow-x-auto">
+    <div className="overflow-x-auto custom-scrollbar">
       <table className="w-full text-left text-sm text-slate-600 dark:text-slate-300">
-        <thead className="bg-slate-50/80 dark:bg-slate-800/60 text-[11px] uppercase tracking-wider text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800">
+        <thead className="sticky top-0 z-10 bg-slate-50/95 dark:bg-slate-800/95 backdrop-blur-sm text-[11px] uppercase tracking-wider text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800">
           <tr>
             <th className="py-3 px-4 font-semibold">{t('inventory.col_product')}</th>
             <th className="py-3 px-4 font-semibold">{t('inventory.col_sku')}</th>
             <th className="py-3 px-4 font-semibold">{t('inventory.col_location')}</th>
             <th className="py-3 px-4 font-semibold">{t('inventory.col_current_stock')}</th>
             <th className="py-3 px-4 font-semibold">{t('inventory.col_min_threshold')}</th>
-            <th className="py-3 px-4 font-semibold text-right">{t('inventory.col_quick_adjust')}</th>
+            <th className="py-3 px-4 font-semibold text-right sticky right-0 z-10 bg-slate-50/95 dark:bg-slate-800/95 backdrop-blur-sm border-l border-slate-200/60 dark:border-slate-700/60">
+              {t('inventory.col_quick_adjust')}
+            </th>
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -37,7 +39,7 @@ export const InventoryStockTable: React.FC<InventoryStockTableProps> = ({
             const translatedName = tp(p.name);
 
             return (
-              <tr key={p.id} className="hover:bg-slate-50/70 dark:hover:bg-slate-800/40">
+              <tr key={p.id} className="group hover:bg-slate-50/70 dark:hover:bg-slate-800/40">
                 <td className="py-3 px-4">
                   <div className="flex items-center gap-3">
                     <img
@@ -80,7 +82,7 @@ export const InventoryStockTable: React.FC<InventoryStockTableProps> = ({
                   ≥ {p.lowStockThreshold} {t('table.stock_unit')}
                 </td>
 
-                <td className="py-3 px-4 text-right">
+                <td className="py-3 px-4 text-right sticky right-0 z-10 bg-white/95 dark:bg-slate-900/95 group-hover:bg-slate-50/95 dark:group-hover:bg-slate-800/95 backdrop-blur-sm border-l border-slate-100 dark:border-slate-800/80">
                   <div className="flex items-center justify-end gap-1.5">
                     <Button
                       size="sm"

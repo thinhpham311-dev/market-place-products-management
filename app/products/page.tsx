@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { showToast } from '@/store/slices/uiSlice';
@@ -14,6 +15,7 @@ import {
 } from '@/store/slices/productsSlice';
 import { Product, ProductStatus } from '@/types/product';
 import { ProductList } from '@/components/dashboard/ProductList';
+import { DeleteProductModal } from '@/components/dashboard/products/DeleteProductModal';
 import { useTranslation } from '@/lib/i18n/useTranslation';
 import { Icons } from '@/components/ui/Icons';
 import { Button } from '@/components/ui/Button';
@@ -27,18 +29,35 @@ export default function ProductsPage() {
   const categories = useAppSelector((s) => s.categories.items);
   const globalSearch = useAppSelector((s) => s.ui.globalSearch);
 
+  const [pendingDeleteIds, setPendingDeleteIds] = useState<string[]>([]);
+
   const handleOpenCreate = () => router.push('/products/new');
   const handleOpenEdit = (product: Product) => router.push(`/products/${product.id}/edit`);
   const handleOpenDetail = (product: Product) => router.push(`/products/${product.id}`);
   const handleOpenPublish = (product: Product) => router.push(`/products/${product.id}/publish`);
 
   const handleDeleteProduct = (id: string) => {
-    const target = products.find((p) => p.id === id);
-    if (confirm(`Bạn có chắc chắn muốn xóa sản phẩm "${target?.name}"?`)) {
-      dispatch(deleteProduct(id));
-      dispatch(showToast('Đã xóa sản phẩm thành công.'));
+    setPendingDeleteIds([id]);
+  };
+
+  const handleBulkDelete = (ids: string[]) => {
+    if (ids.length > 0) {
+      setPendingDeleteIds(ids);
     }
   };
+
+  const handleConfirmDelete = () => {
+    if (pendingDeleteIds.length === 1) {
+      dispatch(deleteProduct(pendingDeleteIds[0]));
+      dispatch(showToast(t('delete_modal.success_toast')));
+    } else if (pendingDeleteIds.length > 1) {
+      dispatch(bulkDelete(pendingDeleteIds));
+      dispatch(showToast(`Đã xóa ${pendingDeleteIds.length} sản phẩm thành công.`));
+    }
+    setPendingDeleteIds([]);
+  };
+
+  const productsToDelete = products.filter((p) => pendingDeleteIds.includes(p.id));
 
   const handleDuplicateProduct = (product: Product) => {
     dispatch(duplicateProduct(product));
@@ -57,13 +76,6 @@ export default function ProductsPage() {
   const handleBulkUpdateStatus = (ids: string[], status: ProductStatus) => {
     dispatch(bulkUpdateStatus({ ids, status }));
     dispatch(showToast(`Đã cập nhật trạng thái cho ${ids.length} sản phẩm.`));
-  };
-
-  const handleBulkDelete = (ids: string[]) => {
-    if (confirm(`Bạn có chắc chắn muốn xóa ${ids.length} sản phẩm đã chọn?`)) {
-      dispatch(bulkDelete(ids));
-      dispatch(showToast(`Đã xóa ${ids.length} sản phẩm thành công.`));
-    }
   };
 
   const handleBulkPublish = (ids: string[]) => {
@@ -108,6 +120,13 @@ export default function ProductsPage() {
         onBulkPublish={handleBulkPublish}
         onBulkDelete={handleBulkDelete}
         onOpenCreateProduct={handleOpenCreate}
+      />
+
+      <DeleteProductModal
+        isOpen={pendingDeleteIds.length > 0}
+        productsToDelete={productsToDelete}
+        onClose={() => setPendingDeleteIds([])}
+        onConfirm={handleConfirmDelete}
       />
     </div>
   );

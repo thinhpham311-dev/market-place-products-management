@@ -27,7 +27,7 @@ export const InventoryStatsCards: React.FC<InventoryStatsCardsProps> = ({
             {t('inventory.stat_total_units')}
           </span>
           <h3 className="text-2xl font-bold text-slate-900 dark:text-white mt-1">
-            {totalUnits.toLocaleString()} {t('table.stock_unit')}
+            {totalUnits.toLocaleString('vi-VN')} {t('table.stock_unit')}
           </h3>
           <p className="text-xs text-slate-500 mt-1">
             {t('inventory.stat_across_products')} {productCount} {t('table.products_unit')}

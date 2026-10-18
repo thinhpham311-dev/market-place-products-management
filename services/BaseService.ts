@@ -1,6 +1,12 @@
 import axios from "axios";
 import appConfig from "@/configs/app.config";
-import { TOKEN_TYPE, REQUEST_HEADER_AUTH_KEY } from "@/constants/api/api.constant";
+import {
+  TOKEN_TYPE,
+  REQUEST_HEADER_AUTH_KEY,
+  REQUEST_HEADER_API_KEY,
+  REQUEST_HEADER_CLIENT_ID,
+  API_KEY,
+} from "@/constants/api/api.constant";
 import store from "@/store";
 import { onSignOutSuccess } from "@/store/auth/sessionSlice";
 import { handleAxiosError } from "@/lib/http/handleAxiosError";
@@ -16,9 +22,21 @@ const BaseService = axios.create({
 
 BaseService.interceptors.request.use(
   (config) => {
-    const accessToken = store.getState()?.auth?.session?.token;
+    const state = store.getState();
+    const accessToken = state?.auth?.session?.token;
     if (accessToken) {
       config.headers[REQUEST_HEADER_AUTH_KEY] = `${TOKEN_TYPE}${accessToken}`;
+      config.headers["authorization"] = accessToken;
+    }
+
+    const clientId = state?.auth?.user?.id;
+    if (clientId) {
+      config.headers[REQUEST_HEADER_CLIENT_ID] = clientId;
+    }
+
+    const apiKey = process.env.NEXT_PUBLIC_API_KEY || API_KEY;
+    if (apiKey) {
+      config.headers[REQUEST_HEADER_API_KEY] = apiKey;
     }
 
     config.withCredentials = true;

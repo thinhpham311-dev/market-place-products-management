@@ -18,6 +18,7 @@ export const DEFAULT_ACCOUNTS: RegisteredAccount[] = [
     email: "admin@novashop.vn",
     password: "123456",
     user: {
+      id: "66f1a2b3c4d5e6f7a8b9c0d1",
       avatar: "AD",
       userName: "Admin Shop",
       email: "admin@novashop.vn",
@@ -30,6 +31,7 @@ export const DEFAULT_ACCOUNTS: RegisteredAccount[] = [
     email: "warehouse@novashop.vn",
     password: "123456",
     user: {
+      id: "66f1a2b3c4d5e6f7a8b9c0d2",
       avatar: "KH",
       userName: "Trần Minh Kho",
       email: "warehouse@novashop.vn",
@@ -42,6 +44,7 @@ export const DEFAULT_ACCOUNTS: RegisteredAccount[] = [
     email: "sale@novashop.vn",
     password: "123456",
     user: {
+      id: "66f1a2b3c4d5e6f7a8b9c0d3",
       avatar: "SL",
       userName: "Lê Thu Hà",
       email: "sale@novashop.vn",

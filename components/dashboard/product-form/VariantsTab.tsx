@@ -5,6 +5,7 @@ import { ProductVariant } from '@/types/product';
 import { useTranslation } from '@/lib/i18n/useTranslation';
 import { Button } from '@/components/ui/Button';
 import { Icons } from '@/components/ui/Icons';
+import { ConfirmDeleteModal } from '@/components/ui/ConfirmDeleteModal';
 
 interface VariantsTabProps {
   hasVariants: boolean;
@@ -31,6 +32,7 @@ export const VariantsTab: React.FC<VariantsTabProps> = ({
   const [variantOptions] = useState<{ name: string; values: string[] }[]>([
     { name: 'Màu sắc', values: ['Đen', 'Trắng'] },
   ]);
+  const [pendingDeleteVariant, setPendingDeleteVariant] = useState<ProductVariant | null>(null);
 
   const handleGenerateVariants = () => {
     const list: ProductVariant[] = [];
@@ -48,6 +50,12 @@ export const VariantsTab: React.FC<VariantsTabProps> = ({
       });
     }
     setVariantsList(list);
+  };
+
+  const handleConfirmDeleteVariant = () => {
+    if (!pendingDeleteVariant) return;
+    setVariantsList(variantsList.filter((v) => v.id !== pendingDeleteVariant.id));
+    setPendingDeleteVariant(null);
   };
 
   return (
@@ -87,7 +95,7 @@ export const VariantsTab: React.FC<VariantsTabProps> = ({
           </div>
 
           {variantsList.length > 0 ? (
-            <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700">
+            <div className="overflow-x-auto custom-scrollbar rounded-xl border border-slate-200 dark:border-slate-700">
               <table className="w-full text-left text-xs">
                 <thead className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
                   <tr>
@@ -95,6 +103,7 @@ export const VariantsTab: React.FC<VariantsTabProps> = ({
                     <th className="p-2.5">{t('variants.col_sku')}</th>
                     <th className="p-2.5">{t('variants.col_price')}</th>
                     <th className="p-2.5">{t('variants.col_stock')}</th>
+                    <th className="p-2.5 text-right">{t('table.col_actions')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
@@ -106,6 +115,16 @@ export const VariantsTab: React.FC<VariantsTabProps> = ({
                         {new Intl.NumberFormat('vi-VN').format(v.price)} đ
                       </td>
                       <td className="p-2.5 text-emerald-600 font-bold">{v.stock}</td>
+                      <td className="p-2.5 text-right">
+                        <button
+                          type="button"
+                          onClick={() => setPendingDeleteVariant(v)}
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors cursor-pointer"
+                          title="Xóa biến thể"
+                        >
+                          <Icons.Trash2 size={14} />
+                        </button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -118,6 +137,21 @@ export const VariantsTab: React.FC<VariantsTabProps> = ({
           )}
         </div>
       )}
+
+      <ConfirmDeleteModal
+        isOpen={Boolean(pendingDeleteVariant)}
+        title="Xác nhận xóa biến thể"
+        message="Bạn có chắc chắn muốn xóa biến thể phân loại này khỏi sản phẩm?"
+        itemName={pendingDeleteVariant ? `Phân loại: ${pendingDeleteVariant.name}` : ''}
+        itemSubtitle={pendingDeleteVariant ? `SKU: ${pendingDeleteVariant.sku}` : ''}
+        itemMeta={
+          pendingDeleteVariant
+            ? `Giá: ${new Intl.NumberFormat('vi-VN').format(pendingDeleteVariant.price)} đ • Tồn: ${pendingDeleteVariant.stock}`
+            : ''
+        }
+        onClose={() => setPendingDeleteVariant(null)}
+        onConfirm={handleConfirmDeleteVariant}
+      />
     </div>
   );
 };

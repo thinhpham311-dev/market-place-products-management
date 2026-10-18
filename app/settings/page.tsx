@@ -41,7 +41,7 @@ function SettingsPageContent() {
       </div>
 
       {/* URL-synced Settings Tabs */}
-      <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 overflow-x-auto">
+      <div className="sticky top-16 z-20 bg-slate-50/95 dark:bg-slate-950/95 backdrop-blur-md pt-2 flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 overflow-x-auto custom-scrollbar scrollbar-thin">
         <button
           type="button"
           onClick={() => handleTabChange('general')}

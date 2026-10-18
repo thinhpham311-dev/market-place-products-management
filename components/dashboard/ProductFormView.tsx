@@ -199,8 +199,8 @@ export const ProductFormView: React.FC<ProductFormViewProps> = ({
 
   return (
     <div className="space-y-6 animate-fade-in max-w-4xl mx-auto">
-      {/* Page Header & Back Navigation */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      {/* Page Header & Back Navigation (Sticky below Header) */}
+      <div className="sticky top-16 z-20 bg-slate-50/95 dark:bg-slate-950/95 backdrop-blur-md py-3 -mx-2 px-2 border-b border-slate-200/70 dark:border-slate-800/70 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-start gap-3">
           <button
             type="button"
@@ -245,7 +245,7 @@ export const ProductFormView: React.FC<ProductFormViewProps> = ({
       {/* Main Card Container */}
       <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm p-5 sm:p-6">
         {/* Form Navigation Tabs */}
-        <div className="flex items-center gap-1.5 border-b border-slate-200 dark:border-slate-800 pb-3 mb-6 overflow-x-auto custom-scrollbar">
+        <div className="sticky top-[8.25rem] z-10 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md pt-1 flex items-center gap-1.5 border-b border-slate-200 dark:border-slate-800 pb-3 mb-6 overflow-x-auto custom-scrollbar">
           {[
             { id: 'basic', label: 'Thông tin chung', icon: Icons.Package },
             { id: 'media', label: 'Hình ảnh & Media', icon: Icons.ImageIcon },

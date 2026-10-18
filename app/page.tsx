@@ -16,18 +16,38 @@ export default function DashboardPage() {
   const searchParams = useSearchParams();
   const { t } = useTranslation();
 
-  useEffect(() => {
-    const tab = searchParams.get('tab') as TabType | null;
-    if (!tab) {
-      router.replace('/?tab=overview', { scroll: false });
-    } else if (tab !== 'overview' && TAB_ROUTES[tab]) {
-      router.replace(TAB_ROUTES[tab]);
-    }
-  }, [searchParams, router]);
-
+  const user = useAppSelector((s) => s.auth.user);
   const products = useAppSelector((s) => s.products.items);
   const categories = useAppSelector((s) => s.categories.items);
   const metrics = useAppSelector(selectDashboardMetrics);
+
+  useEffect(() => {
+    const tab = searchParams.get('tab') as TabType | null;
+    const urlClientId = searchParams.get('clientId');
+    const resolvedClientId = urlClientId || user?.id;
+
+    if (tab && tab !== 'overview' && TAB_ROUTES[tab]) {
+      const targetRoute = TAB_ROUTES[tab];
+      if (resolvedClientId) {
+        const [basePath, existingQuery] = targetRoute.split('?');
+        const params = new URLSearchParams(existingQuery || '');
+        params.set('clientId', resolvedClientId);
+        router.replace(`${basePath}?${params.toString()}`);
+      } else {
+        router.replace(targetRoute);
+      }
+      return;
+    }
+
+    if (!tab || (resolvedClientId && !urlClientId)) {
+      const params = new URLSearchParams(searchParams.toString());
+      params.set('tab', 'overview');
+      if (resolvedClientId) {
+        params.set('clientId', resolvedClientId);
+      }
+      router.replace(`/?${params.toString()}`, { scroll: false });
+    }
+  }, [searchParams, router, user?.id]);
 
   const handleOpenCreate = () => router.push('/products/new?tab=basic');
   const handleOpenDetail = (product: Product) => router.push(`/products/${product.id}`);

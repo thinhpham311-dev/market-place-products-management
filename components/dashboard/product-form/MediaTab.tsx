@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Icons } from '@/components/ui/Icons';
+import { ConfirmDeleteModal } from '@/components/ui/ConfirmDeleteModal';
 
 interface MediaTabProps {
   thumbnail: string;
@@ -18,12 +19,19 @@ export const MediaTab: React.FC<MediaTabProps> = ({
   setImages,
 }) => {
   const [newImageUrl, setNewImageUrl] = useState('');
+  const [pendingDeleteIndex, setPendingDeleteIndex] = useState<number | null>(null);
 
   const handleAddImage = () => {
     if (newImageUrl.trim()) {
       setImages([...images, newImageUrl.trim()]);
       setNewImageUrl('');
     }
+  };
+
+  const handleConfirmDeleteImage = () => {
+    if (pendingDeleteIndex === null) return;
+    setImages(images.filter((_, i) => i !== pendingDeleteIndex));
+    setPendingDeleteIndex(null);
   };
 
   return (
@@ -83,8 +91,9 @@ export const MediaTab: React.FC<MediaTabProps> = ({
               <img src={img} alt={`Gallery ${idx}`} className="w-full h-full object-cover" />
               <button
                 type="button"
-                onClick={() => setImages(images.filter((_, i) => i !== idx))}
-                className="absolute top-1.5 right-1.5 p-1 rounded-lg bg-rose-600 text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                onClick={() => setPendingDeleteIndex(idx)}
+                className="absolute top-1.5 right-1.5 p-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer shadow-sm"
+                title="Xóa hình ảnh"
               >
                 <Icons.Trash2 size={13} />
               </button>
@@ -92,6 +101,17 @@ export const MediaTab: React.FC<MediaTabProps> = ({
           ))}
         </div>
       </div>
+
+      <ConfirmDeleteModal
+        isOpen={pendingDeleteIndex !== null}
+        title="Xóa hình ảnh khỏi bộ sưu tập"
+        message="Bạn có chắc chắn muốn gỡ bỏ hình ảnh này khỏi bộ sưu tập ảnh phụ của sản phẩm?"
+        itemName={pendingDeleteIndex !== null ? `Hình ảnh #${pendingDeleteIndex + 1}` : ''}
+        itemSubtitle={pendingDeleteIndex !== null ? images[pendingDeleteIndex] : ''}
+        itemImage={pendingDeleteIndex !== null ? images[pendingDeleteIndex] : undefined}
+        onClose={() => setPendingDeleteIndex(null)}
+        onConfirm={handleConfirmDeleteImage}
+      />
     </div>
   );
 };

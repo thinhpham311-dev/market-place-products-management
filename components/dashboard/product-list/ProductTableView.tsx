@@ -50,9 +50,9 @@ export const ProductTableView: React.FC<ProductTableViewProps> = ({
 
   return (
     <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto custom-scrollbar">
         <table className="w-full text-left text-sm text-slate-600 dark:text-slate-300">
-          <thead className="bg-slate-50/80 dark:bg-slate-800/60 text-[11px] uppercase tracking-wider text-slate-500 dark:text-slate-400 border-b border-slate-200/80 dark:border-slate-800">
+          <thead className="sticky top-0 z-10 bg-slate-50/95 dark:bg-slate-800/95 backdrop-blur-sm text-[11px] uppercase tracking-wider text-slate-500 dark:text-slate-400 border-b border-slate-200/80 dark:border-slate-800">
             <tr>
               <th className="p-4 w-10">
                 <input
@@ -68,7 +68,9 @@ export const ProductTableView: React.FC<ProductTableViewProps> = ({
               <th className="py-3.5 px-4 font-semibold">{t('table.col_stock')}</th>
               <th className="py-3.5 px-4 font-semibold">{t('table.col_status_channels')}</th>
               <th className="py-3.5 px-4 font-semibold">{t('table.col_sold')}</th>
-              <th className="py-3.5 px-4 font-semibold text-right">{t('table.col_actions')}</th>
+              <th className="py-3.5 px-4 font-semibold text-right sticky right-0 z-10 bg-slate-50/95 dark:bg-slate-800/95 backdrop-blur-sm border-l border-slate-200/60 dark:border-slate-700/60">
+                {t('table.col_actions')}
+              </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -82,7 +84,7 @@ export const ProductTableView: React.FC<ProductTableViewProps> = ({
               return (
                 <tr
                   key={p.id}
-                  className={`hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors ${
+                  className={`group hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors ${
                     isSelected ? 'bg-indigo-50/40 dark:bg-indigo-950/20' : ''
                   }`}
                 >
@@ -257,7 +259,7 @@ export const ProductTableView: React.FC<ProductTableViewProps> = ({
                   <td className="py-3 px-4">
                     <div className="text-xs">
                       <span className="font-semibold text-slate-900 dark:text-slate-100">
-                        {p.soldCount.toLocaleString()}
+                        {p.soldCount.toLocaleString('vi-VN')}
                       </span>
                       {p.rating > 0 && (
                         <span className="flex items-center gap-1 text-[11px] text-amber-500 mt-0.5">
@@ -268,7 +270,7 @@ export const ProductTableView: React.FC<ProductTableViewProps> = ({
                   </td>
 
                   {/* Actions */}
-                  <td className="py-3 px-4 text-right">
+                  <td className="py-3 px-4 text-right sticky right-0 z-10 bg-white/95 dark:bg-slate-900/95 group-hover:bg-slate-50/95 dark:group-hover:bg-slate-800/95 backdrop-blur-sm border-l border-slate-100 dark:border-slate-800/80">
                     <div className="flex items-center justify-end gap-1.5">
                       {isDraft ? (
                         <Button

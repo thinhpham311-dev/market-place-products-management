@@ -249,6 +249,16 @@ export const dashboardTranslations = {
     'signup.error_pw_mismatch': 'Mật khẩu xác nhận không khớp.',
     'signup.error_terms': 'Vui lòng đồng ý với điều khoản dịch vụ để tiếp tục.',
     'signup.success_toast': 'Đăng ký tài khoản thành công! Chào mừng',
+
+    // Delete Product Confirmation Modal
+    'delete_modal.title': 'Xác nhận xóa sản phẩm',
+    'delete_modal.bulk_title': 'Xác nhận xóa hàng loạt sản phẩm',
+    'delete_modal.subtitle': 'Hành động này không thể hoàn tác sau khi xác nhận',
+    'delete_modal.warning': 'Bạn có chắc chắn muốn xóa sản phẩm này khỏi hệ thống? Toàn bộ dữ liệu liên kết đa kênh và cấu hình biến thể của sản phẩm cũng sẽ bị gỡ bỏ.',
+    'delete_modal.bulk_warning': 'Bạn đang chuẩn bị xóa vĩnh viễn các sản phẩm đã chọn khỏi hệ thống. Dữ liệu tồn kho và liên kết sàn của các sản phẩm này sẽ bị gỡ bỏ.',
+    'delete_modal.confirm_btn': 'Xác nhận xóa',
+    'delete_modal.cancel_btn': 'Giữ lại sản phẩm',
+    'delete_modal.success_toast': 'Đã xóa sản phẩm thành công.',
   },
   en: {
     // Sidebar
@@ -498,6 +508,16 @@ export const dashboardTranslations = {
     'signup.error_pw_mismatch': 'Passwords do not match.',
     'signup.error_terms': 'Please accept the terms of service to continue.',
     'signup.success_toast': 'Account created successfully! Welcome',
+
+    // Delete Product Confirmation Modal
+    'delete_modal.title': 'Confirm Product Deletion',
+    'delete_modal.bulk_title': 'Confirm Bulk Product Deletion',
+    'delete_modal.subtitle': 'This action cannot be undone once confirmed',
+    'delete_modal.warning': 'Are you sure you want to remove this product from the system? All linked omnichannel data and variant configurations will also be removed.',
+    'delete_modal.bulk_warning': 'You are about to permanently delete the selected products from the system. Inventory records and channel links for these items will be removed.',
+    'delete_modal.confirm_btn': 'Delete Now',
+    'delete_modal.cancel_btn': 'Keep Product',
+    'delete_modal.success_toast': 'Product deleted successfully.',
   },
   ja: {
     // Sidebar
@@ -747,6 +767,16 @@ export const dashboardTranslations = {
     'signup.error_pw_mismatch': '確認用パスワードが一致しません。',
     'signup.error_terms': '続行するには利用規約に同意してください。',
     'signup.success_toast': 'アカウント登録が完了しました！ようこそ',
+
+    // Delete Product Confirmation Modal
+    'delete_modal.title': '商品の削除確認',
+    'delete_modal.bulk_title': '商品の一括削除確認',
+    'delete_modal.subtitle': 'この操作は取り消すことができません',
+    'delete_modal.warning': 'この商品をシステムから削除してもよろしいですか？連携されているマルチチャネルデータやバリエーション設定もすべて削除されます。',
+    'delete_modal.bulk_warning': '選択された商品をシステムから完全に削除しようとしています。これらの商品の在庫データとチャネル連携も削除されます。',
+    'delete_modal.confirm_btn': '削除する',
+    'delete_modal.cancel_btn': 'キャンセル',
+    'delete_modal.success_toast': '商品を削除しました。',
   },
 } as const;
 

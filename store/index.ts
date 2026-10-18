@@ -1,7 +1,7 @@
 import { PERSIST_STORE_NAME } from "@/constants/app/app.constant";
 import rootReducer, { RootReducerState } from "./rootReducer";
 import { configureStore, Middleware, Reducer } from "@reduxjs/toolkit";
-import { persistStore, persistReducer, PersistConfig } from "redux-persist";
+import { persistStore, persistReducer, PersistConfig, PersistorOptions } from "redux-persist";
 import storage from "redux-persist/lib/storage";
 import { Store } from "redux";
 import { smartCacheMiddleware, dynamicInitMiddleware } from "@/middlewares";
@@ -30,7 +30,9 @@ const store = configureStore({
 
 store.asyncReducers = {};
 
-export const persistor = persistStore(store);
+export const persistor = persistStore(store, {
+  manualPersist: true,
+} as unknown as PersistorOptions);
 
 export const injectReducer = (key: string, reducer: Reducer): typeof store | false => {
   if (store.asyncReducers[key]) {

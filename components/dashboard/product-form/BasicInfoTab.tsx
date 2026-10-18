@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { ProductCategory } from '@/types/product';
 import { Button } from '@/components/ui/Button';
 import { Icons } from '@/components/ui/Icons';
+import { ConfirmDeleteModal } from '@/components/ui/ConfirmDeleteModal';
 
 interface BasicInfoTabProps {
   name: string;
@@ -45,6 +46,7 @@ export const BasicInfoTab: React.FC<BasicInfoTabProps> = ({
   setTags,
 }) => {
   const [tagInput, setTagInput] = useState('');
+  const [pendingDeleteTag, setPendingDeleteTag] = useState<string | null>(null);
 
   const handleAddTag = () => {
     if (tagInput.trim() && !tags.includes(tagInput.trim())) {
@@ -53,8 +55,10 @@ export const BasicInfoTab: React.FC<BasicInfoTabProps> = ({
     }
   };
 
-  const handleRemoveTag = (t: string) => {
-    setTags(tags.filter((item) => item !== t));
+  const handleConfirmRemoveTag = () => {
+    if (!pendingDeleteTag) return;
+    setTags(tags.filter((item) => item !== pendingDeleteTag));
+    setPendingDeleteTag(null);
   };
 
   return (
@@ -191,8 +195,9 @@ export const BasicInfoTab: React.FC<BasicInfoTabProps> = ({
               #{t}
               <button
                 type="button"
-                onClick={() => handleRemoveTag(t)}
-                className="hover:text-rose-500"
+                onClick={() => setPendingDeleteTag(t)}
+                className="hover:text-rose-500 cursor-pointer"
+                title="Xóa tag"
               >
                 <Icons.X size={12} />
               </button>
@@ -200,6 +205,16 @@ export const BasicInfoTab: React.FC<BasicInfoTabProps> = ({
           ))}
         </div>
       </div>
+
+      <ConfirmDeleteModal
+        isOpen={Boolean(pendingDeleteTag)}
+        title="Xác nhận xóa thẻ Tag"
+        message="Bạn có chắc chắn muốn gỡ bỏ thẻ Tag này khỏi sản phẩm?"
+        itemName={pendingDeleteTag ? `#${pendingDeleteTag}` : ''}
+        itemSubtitle="Thẻ Tag phân loại & tìm kiếm sản phẩm"
+        onClose={() => setPendingDeleteTag(null)}
+        onConfirm={handleConfirmRemoveTag}
+      />
     </div>
   );
 };

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect } from 'react';
+import React, { Suspense, useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { selectDashboardMetrics } from '@/store/selectors/metricsSelectors';
@@ -14,6 +14,7 @@ import {
 } from '@/store/slices/uiSlice';
 import { onSignOutSuccess } from '@/store/auth/sessionSlice';
 import { userLoggedOut } from '@/store/auth/userSlice';
+import { apiSignOut } from '@/services/AuthService';
 import { Sidebar, TabType, TAB_ROUTES } from '@/components/dashboard/Sidebar';
 import { Header } from '@/components/dashboard/Header';
 import { Icons } from '@/components/ui/Icons';
@@ -77,18 +78,35 @@ export const DashboardShell: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const handleSelectTab = (tab: TabType) => {
     dispatch(setActiveTab(tab));
-    router.push(TAB_ROUTES[tab]);
+    const targetRoute = TAB_ROUTES[tab];
+    if (user?.id) {
+      const [basePath, existingQuery] = targetRoute.split('?');
+      const params = new URLSearchParams(existingQuery || '');
+      params.set('clientId', user.id);
+      router.push(`${basePath}?${params.toString()}`);
+      return;
+    }
+    router.push(targetRoute);
   };
 
   const handleOpenCreateProduct = () => {
     router.push('/products/new');
   };
 
-  const handleLogout = () => {
-    dispatch(onSignOutSuccess());
-    dispatch(userLoggedOut());
-    dispatch(showToast('Đã đăng xuất tài khoản thành công.'));
-    router.push('/login');
+  const handleLogout = async () => {
+    try {
+      await apiSignOut({
+        id: user?.id,
+        email: user?.email,
+      });
+    } catch {
+      // Proceed with local logout even if upstream signout returns an error
+    } finally {
+      dispatch(onSignOutSuccess());
+      dispatch(userLoggedOut());
+      dispatch(showToast('Đã đăng xuất tài khoản thành công (/api/shop/signout).'));
+      router.push('/login');
+    }
   };
 
   // Render standalone full-screen layout on /login or /sign-in
@@ -103,7 +121,7 @@ export const DashboardShell: React.FC<{ children: React.ReactNode }> = ({ childr
             <span className="text-xs font-semibold">{toastMessage}</span>
           </div>
         )}
-        {children}
+        <Suspense fallback={null}>{children}</Suspense>
       </div>
     );
   }
@@ -141,7 +159,7 @@ export const DashboardShell: React.FC<{ children: React.ReactNode }> = ({ childr
       />
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+      <div className="flex-1 flex flex-col min-w-0">
         {/* Top Header */}
         <Header
           onOpenCreateProduct={handleOpenCreateProduct}
@@ -154,8 +172,8 @@ export const DashboardShell: React.FC<{ children: React.ReactNode }> = ({ childr
         />
 
         {/* Dynamic Main Body */}
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto">
-          {children}
+        <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto">
+          <Suspense fallback={null}>{children}</Suspense>
         </main>
       </div>
     </div>

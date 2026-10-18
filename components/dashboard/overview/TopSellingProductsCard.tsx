@@ -79,7 +79,7 @@ export const TopSellingProductsCard: React.FC<TopSellingProductsCardProps> = ({
                   {formatCurrency(product.revenue)}
                 </p>
                 <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium mt-0.5">
-                  {product.soldCount.toLocaleString()} {t('kpi.sold_units')}
+                  {product.soldCount.toLocaleString('vi-VN')} {t('kpi.sold_units')}
                 </p>
               </div>
             </div>

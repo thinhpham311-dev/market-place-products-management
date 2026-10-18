@@ -127,7 +127,9 @@ export const SignUpView: React.FC = () => {
       .toUpperCase();
 
     const selectedRole = ROLE_CONFIG[roleKey];
+    const generatedClientId = `shop_${Date.now().toString(16)}`;
     const newUser: UserState = {
+      id: generatedClientId,
       avatar: initials || 'NV',
       userName: trimmedName,
       email: trimmedEmail,
@@ -152,8 +154,15 @@ export const SignUpView: React.FC = () => {
       dispatch(setUser(newUser));
       dispatch(showToast(`${t('signup.success_toast')} ${newUser.userName}!`));
 
-      const redirectUrl = searchParams.get('redirectUrl') || '/?tab=overview';
-      router.push(redirectUrl);
+      const rawRedirectUrl = searchParams.get('redirectUrl') || '/?tab=overview';
+      const [basePath, existingQuery] = rawRedirectUrl.split('?');
+      const params = new URLSearchParams(existingQuery || '');
+      if (basePath === '/' && !params.get('tab')) {
+        params.set('tab', 'overview');
+      }
+      params.set('clientId', generatedClientId);
+
+      router.push(`${basePath}?${params.toString()}`);
     }, 400);
   };
 

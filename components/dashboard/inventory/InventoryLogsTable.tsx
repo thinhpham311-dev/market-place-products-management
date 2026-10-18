@@ -12,7 +12,7 @@ export const InventoryLogsTable: React.FC<InventoryLogsTableProps> = ({ logs }) 
   const { t, tp, tlr } = useTranslation();
 
   return (
-    <div className="overflow-x-auto">
+    <div className="overflow-x-auto custom-scrollbar">
       <table className="w-full text-left text-sm text-slate-600 dark:text-slate-300">
         <thead className="bg-slate-50/80 dark:bg-slate-800/60 text-[11px] uppercase tracking-wider text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800">
           <tr>

@@ -5,15 +5,18 @@ import { useRouter } from 'next/navigation';
 import { ProductCategory } from '@/types/product';
 import { Button } from '@/components/ui/Button';
 import { Icons } from '@/components/ui/Icons';
+import { ConfirmDeleteModal } from '@/components/ui/ConfirmDeleteModal';
 
 interface CategoryFormViewProps {
   initialData?: ProductCategory | null;
   onSubmit: (data: { name: string; slug: string; description: string }) => void;
+  onDelete?: () => void;
 }
 
 export const CategoryFormView: React.FC<CategoryFormViewProps> = ({
   initialData,
   onSubmit,
+  onDelete,
 }) => {
   const router = useRouter();
   const isEditing = Boolean(initialData);
@@ -21,6 +24,7 @@ export const CategoryFormView: React.FC<CategoryFormViewProps> = ({
   const [name, setName] = useState(initialData?.name || '');
   const [slug, setSlug] = useState(initialData?.slug || '');
   const [description, setDescription] = useState(initialData?.description || '');
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
@@ -38,23 +42,37 @@ export const CategoryFormView: React.FC<CategoryFormViewProps> = ({
 
   return (
     <div className="space-y-6 animate-fade-in max-w-xl mx-auto">
-      <div className="flex items-start gap-3">
-        <button
-          type="button"
-          onClick={() => router.back()}
-          className="mt-0.5 p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-          title="Quay lại"
-        >
-          <Icons.ChevronLeft size={18} />
-        </button>
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
-            {isEditing ? 'Chỉnh sửa danh mục' : 'Thêm danh mục mới'}
-          </h1>
-          <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
-            Phân loại nhóm sản phẩm trên website và sàn thương mại
-          </p>
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-start gap-3">
+          <button
+            type="button"
+            onClick={() => router.back()}
+            className="mt-0.5 p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+            title="Quay lại"
+          >
+            <Icons.ChevronLeft size={18} />
+          </button>
+          <div>
+            <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
+              {isEditing ? 'Chỉnh sửa danh mục' : 'Thêm danh mục mới'}
+            </h1>
+            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
+              Phân loại nhóm sản phẩm trên website và sàn thương mại
+            </p>
+          </div>
         </div>
+
+        {isEditing && onDelete && (
+          <Button
+            type="button"
+            variant="danger"
+            size="sm"
+            leftIcon={<Icons.Trash2 size={15} />}
+            onClick={() => setShowDeleteModal(true)}
+          >
+            Xóa danh mục
+          </Button>
+        )}
       </div>
 
       <form
@@ -110,6 +128,21 @@ export const CategoryFormView: React.FC<CategoryFormViewProps> = ({
           </Button>
         </div>
       </form>
+
+      {isEditing && initialData && onDelete && (
+        <ConfirmDeleteModal
+          isOpen={showDeleteModal}
+          title="Xác nhận xóa danh mục"
+          message="Bạn có chắc chắn muốn xóa danh mục này khỏi hệ thống? Các sản phẩm thuộc danh mục này sẽ cần được phân loại lại."
+          itemName={initialData.name}
+          itemSubtitle={`/${initialData.slug} • ${initialData.description || ''}`}
+          onClose={() => setShowDeleteModal(false)}
+          onConfirm={() => {
+            setShowDeleteModal(false);
+            onDelete();
+          }}
+        />
+      )}
     </div>
   );
 };

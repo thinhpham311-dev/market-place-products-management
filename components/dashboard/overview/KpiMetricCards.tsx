@@ -76,7 +76,7 @@ export const KpiMetricCards: React.FC<KpiMetricCardsProps> = ({
         </div>
         <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-xs text-slate-500">
           <span>
-            {t('kpi.sold_units')}: <strong className="text-slate-700 dark:text-slate-200">{metrics.totalSold.toLocaleString()}</strong>
+            {t('kpi.sold_units')}: <strong className="text-slate-700 dark:text-slate-200">{metrics.totalSold.toLocaleString('vi-VN')}</strong>
           </span>
           <span>
             <strong className="text-amber-500">4.85 ★</strong>

@@ -8,6 +8,12 @@ import { onSignInSuccess } from '@/store/auth/sessionSlice';
 import { setUser, UserState } from '@/store/auth/userSlice';
 import { DEFAULT_ACCOUNTS, RegisteredAccount } from '@/store/auth/accountsSlice';
 import { showToast } from '@/store/slices/uiSlice';
+import {
+  apiSignIn,
+  apiSignOut,
+  NEXT_SIGNIN_API_ENDPOINT,
+  NEXT_SIGNOUT_API_ENDPOINT,
+} from '@/services/AuthService';
 import { Icons } from '@/components/ui/Icons';
 import { Button } from '@/components/ui/Button';
 import { AuthSplitLayout } from '@/components/auth/AuthSplitLayout';
@@ -30,23 +36,90 @@ export const LoginView: React.FC = () => {
   const [rememberMe, setRememberMe] = useState(true);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [apiCallStatus, setApiCallStatus] = useState<{
+    called: boolean;
+    ok: boolean;
+    endpoint?: string;
+    data: unknown;
+  } | null>(null);
 
-  const performLogin = (userPayload: UserState) => {
-    setIsLoading(true);
-    setError('');
+  const performLogin = (userPayload: UserState, customToken?: string) => {
+    const token = customToken || `novashop-jwt-${Date.now()}`;
+    const clientId = userPayload.id || '66f1a2b3c4d5e6f7a8b9c0d1';
+    const resolvedUser: UserState = {
+      ...userPayload,
+      id: clientId,
+    };
 
-    setTimeout(() => {
-      const fakeToken = `novashop-jwt-${Date.now()}`;
-      dispatch(onSignInSuccess(fakeToken));
-      dispatch(setUser(userPayload));
-      dispatch(showToast(`Xin chào ${userPayload.userName}! Đăng nhập thành công.`));
+    dispatch(onSignInSuccess(token));
+    dispatch(setUser(resolvedUser));
+    dispatch(showToast(`Xin chào ${resolvedUser.userName}! Đăng nhập thành công.`));
 
-      const redirectUrl = searchParams.get('redirectUrl') || '/?tab=overview';
-      router.push(redirectUrl);
-    }, 350);
+    const rawRedirectUrl = searchParams.get('redirectUrl') || '/?tab=overview';
+    const [basePath, existingQuery] = rawRedirectUrl.split('?');
+    const params = new URLSearchParams(existingQuery || '');
+    if (basePath === '/' && !params.get('tab')) {
+      params.set('tab', 'overview');
+    }
+    params.set('clientId', clientId);
+
+    router.push(`${basePath}?${params.toString()}`);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleCallNextServerApi = async () => {
+    setIsLoading(true);
+    setError('');
+    try {
+      const res = await apiSignIn({
+        email: email.trim(),
+        password,
+      });
+      setApiCallStatus({
+        called: true,
+        ok: true,
+        endpoint: NEXT_SIGNIN_API_ENDPOINT,
+        data: res.data,
+      });
+      return res.data as Record<string, any>;
+    } catch (err: unknown) {
+      setApiCallStatus({
+        called: true,
+        ok: false,
+        endpoint: NEXT_SIGNIN_API_ENDPOINT,
+        data: err,
+      });
+      return null;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleCallNextSignOutApi = async () => {
+    setIsLoading(true);
+    setError('');
+    try {
+      const res = await apiSignOut({
+        email: email.trim(),
+      });
+      setApiCallStatus({
+        called: true,
+        ok: true,
+        endpoint: NEXT_SIGNOUT_API_ENDPOINT,
+        data: res.data,
+      });
+    } catch (err: unknown) {
+      setApiCallStatus({
+        called: true,
+        ok: false,
+        endpoint: NEXT_SIGNOUT_API_ENDPOINT,
+        data: err,
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email.trim() || !password.trim()) {
       setError('Vui lòng nhập đầy đủ email và mật khẩu.');
@@ -58,6 +131,41 @@ export const LoginView: React.FC = () => {
       return;
     }
 
+    // Call Next.js Server Endpoint (/api/shop/signin -> /v1/api/shop/signin)
+    const apiData = await handleCallNextServerApi();
+
+    if (apiData) {
+      const metadata = apiData?.metadata || apiData?.data || apiData;
+      const shopInfo = metadata?.shop || metadata?.user || {};
+      const accessToken =
+        metadata?.tokens?.accessToken ||
+        metadata?.accessToken ||
+        metadata?.token ||
+        `novashop-jwt-${Date.now()}`;
+
+      const resolvedName = shopInfo?.name || shopInfo?.userName || email.split('@')[0] || 'Shop Admin';
+      const initials = resolvedName
+        .split(' ')
+        .map((w: string) => w[0])
+        .join('')
+        .slice(0, 2)
+        .toUpperCase();
+
+      performLogin(
+        {
+          id: shopInfo?._id || shopInfo?.id,
+          avatar: initials || 'SH',
+          userName: resolvedName,
+          email: shopInfo?.email || email.trim(),
+          role: 'Chủ gian hàng',
+          authority: shopInfo?.roles || ['admin', 'owner'],
+        },
+        accessToken
+      );
+      return;
+    }
+
+    // Fallback to local registered accounts when upstream backend is offline
     const matchedAccount = accounts.find(
       (acc) => acc.email.toLowerCase() === email.trim().toLowerCase()
     );
@@ -71,7 +179,6 @@ export const LoginView: React.FC = () => {
       return;
     }
 
-    // Support custom email login
     const namePart = email.split('@')[0] || 'User';
     const formattedName = namePart
       .replace(/[._-]/g, ' ')
@@ -119,6 +226,69 @@ export const LoginView: React.FC = () => {
           <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
             {t('login.subtitle')}
           </p>
+        </div>
+
+        {/* Next Server API Endpoint Card */}
+        <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 space-y-2.5">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <div className="flex items-center gap-2">
+              <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-600 text-white uppercase tracking-wider">
+                POST
+              </span>
+              <a
+                href={NEXT_SIGNIN_API_ENDPOINT}
+                target="_blank"
+                rel="noreferrer"
+                className="text-xs font-mono font-bold text-indigo-600 dark:text-indigo-400 hover:underline"
+              >
+                {NEXT_SIGNIN_API_ENDPOINT}
+              </a>
+            </div>
+            <button
+              type="button"
+              onClick={handleCallNextServerApi}
+              disabled={isLoading}
+              className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-300 border border-indigo-200/80 dark:border-indigo-800/60 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 transition-colors cursor-pointer"
+            >
+              Gọi SignIn API
+            </button>
+          </div>
+
+          <div className="flex items-center justify-between gap-2 flex-wrap pt-2 border-t border-slate-200/60 dark:border-slate-700/60">
+            <div className="flex items-center gap-2">
+              <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-rose-600 text-white uppercase tracking-wider">
+                POST
+              </span>
+              <a
+                href={NEXT_SIGNOUT_API_ENDPOINT}
+                target="_blank"
+                rel="noreferrer"
+                className="text-xs font-mono font-bold text-rose-600 dark:text-rose-400 hover:underline"
+              >
+                {NEXT_SIGNOUT_API_ENDPOINT}
+              </a>
+            </div>
+            <button
+              type="button"
+              onClick={handleCallNextSignOutApi}
+              disabled={isLoading}
+              className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-300 border border-rose-200/80 dark:border-rose-800/60 hover:bg-rose-100 dark:hover:bg-rose-900/60 transition-colors cursor-pointer"
+            >
+              Gọi SignOut API
+            </button>
+          </div>
+
+          <p className="text-[11px] text-slate-500 dark:text-slate-400 font-mono">
+            Proxy Next Server →{' '}
+            <span className="text-slate-700 dark:text-slate-300">
+              /v1/api/shop/signin & /v1/api/shop/signout
+            </span>
+          </p>
+          {apiCallStatus?.called && (
+            <pre className="mt-2 p-2.5 rounded-xl bg-slate-900 text-slate-100 text-[11px] font-mono overflow-x-auto custom-scrollbar max-h-36">
+              {JSON.stringify(apiCallStatus.data, null, 2)}
+            </pre>
+          )}
         </div>
 
         {error && (

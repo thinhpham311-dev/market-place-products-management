@@ -3,3 +3,4 @@ export const PERSIST_STORE_NAME = "store";
 export const REDIRECT_URL_KEY = "redirectUrl";
 export const SEARCH_IMAGE_SESSION_KEY = "marketplace-search-image";
 export const SEARCH_SESSION_KEY = "marketplace-search";
+export const API_KEY = process.env.NEXT_PUBLIC_API_KEY || process.env.CONSTANT || "API_KEY";
