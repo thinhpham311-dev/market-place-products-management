@@ -26,7 +26,7 @@ export const ProductPublishView: React.FC<ProductPublishViewProps> = ({ product 
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const dispatch = useAppDispatch();
-  const { tp } = useTranslation();
+  const { t, tp, formatCurrency } = useTranslation();
 
   const [selectedChannels, setSelectedChannels] = useState<
     ('shopee' | 'tiktok' | 'lazada' | 'website')[]
@@ -159,13 +159,11 @@ export const ProductPublishView: React.FC<ProductPublishViewProps> = ({ product 
             </h4>
             <div className="flex items-center gap-2 mt-1 text-xs">
               <span className="font-bold text-slate-900 dark:text-white">
-                {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(
-                  product.price
-                )}
+                {formatCurrency(product.price)}
               </span>
               <span>•</span>
               <span className="text-slate-500">
-                Tồn kho: <strong>{product.stock} cái</strong>
+                {t('table.col_stock')}: <strong>{product.stock} {t('table.stock_unit')}</strong>
               </span>
             </div>
           </div>

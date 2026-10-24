@@ -36,12 +36,9 @@ export const ProductTableView: React.FC<ProductTableViewProps> = ({
   onOpenPublishModal,
   onQuickUpdateStock,
 }) => {
-  const { t, tp, tc } = useTranslation();
+  const { t, tp, tc, formatCurrency, formatNumber } = useTranslation();
   const [editingStockId, setEditingStockId] = useState<string | null>(null);
   const [inlineStockVal, setInlineStockVal] = useState<number>(0);
-
-  const formatCurrency = (val: number) =>
-    new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(val);
 
   const handleSaveStock = (id: string) => {
     onQuickUpdateStock(id, Math.max(0, inlineStockVal));
@@ -259,7 +256,7 @@ export const ProductTableView: React.FC<ProductTableViewProps> = ({
                   <td className="py-3 px-4">
                     <div className="text-xs">
                       <span className="font-semibold text-slate-900 dark:text-slate-100">
-                        {p.soldCount.toLocaleString('vi-VN')}
+                        {formatNumber(p.soldCount)}
                       </span>
                       {p.rating > 0 && (
                         <span className="flex items-center gap-1 text-[11px] text-amber-500 mt-0.5">

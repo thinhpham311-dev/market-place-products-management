@@ -1,6 +1,5 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 import { Product, ProductStatus, InventoryLog } from '@/types/product';
-import { initialProducts, mockInventoryLogs } from '@/data/mockProducts';
 
 interface ProductsState {
   items: Product[];
@@ -8,8 +7,8 @@ interface ProductsState {
 }
 
 const initialState: ProductsState = {
-  items: initialProducts,
-  inventoryLogs: mockInventoryLogs,
+  items: [],
+  inventoryLogs: [],
 };
 
 
@@ -187,6 +186,24 @@ const productsSlice = createSlice({
     bulkDelete(state, action: PayloadAction<string[]>) {
       state.items = state.items.filter((p) => !action.payload.includes(p.id));
     },
+
+    // Sync drafted products fetched from /v1/api/product/spu/drafted/list
+    setDraftedProducts(state, action: PayloadAction<Product[]>) {
+      const incomingIds = new Set(action.payload.map((p) => p.id));
+      const nonDraftItems = state.items.filter(
+        (p) => p.status !== 'draft' && !incomingIds.has(p.id)
+      );
+      state.items = [...nonDraftItems, ...action.payload];
+    },
+
+    // Sync published products fetched from /v1/api/product/spu/published/list
+    setPublishedProducts(state, action: PayloadAction<Product[]>) {
+      const incomingIds = new Set(action.payload.map((p) => p.id));
+      const draftItems = state.items.filter(
+        (p) => p.status === 'draft' && !incomingIds.has(p.id)
+      );
+      state.items = [...action.payload, ...draftItems];
+    },
   },
 });
 
@@ -202,6 +219,8 @@ export const {
   bulkPublish,
   bulkUpdateStatus,
   bulkDelete,
+  setDraftedProducts,
+  setPublishedProducts,
 } = productsSlice.actions;
 
 export default productsSlice.reducer;

@@ -16,10 +16,7 @@ export const KpiMetricCards: React.FC<KpiMetricCardsProps> = ({
   products,
   onNavigateTab,
 }) => {
-  const { t } = useTranslation();
-
-  const formatCurrency = (amount: number) =>
-    new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
+  const { t, formatCurrency, formatNumber } = useTranslation();
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
@@ -76,7 +73,7 @@ export const KpiMetricCards: React.FC<KpiMetricCardsProps> = ({
         </div>
         <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-xs text-slate-500">
           <span>
-            {t('kpi.sold_units')}: <strong className="text-slate-700 dark:text-slate-200">{metrics.totalSold.toLocaleString('vi-VN')}</strong>
+            {t('kpi.sold_units')}: <strong className="text-slate-700 dark:text-slate-200">{formatNumber(metrics.totalSold)}</strong>
           </span>
           <span>
             <strong className="text-amber-500">4.85 ★</strong>

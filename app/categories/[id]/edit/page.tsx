@@ -7,14 +7,19 @@ import { updateCategory, deleteCategory } from '@/store/slices/categoriesSlice';
 import { setActiveTab, showToast } from '@/store/slices/uiSlice';
 import { Button } from '@/components/ui/Button';
 import { Icons } from '@/components/ui/Icons';
-import { CategoryFormView } from '@/components/dashboard/categories/CategoryFormView';
+import {
+  CategoryFormSubmitData,
+  CategoryFormView,
+} from '@/components/dashboard/categories/CategoryFormView';
+import { apiUpdateCategoryStatus } from '@/services/CategoryService';
 
 export default function EditCategoryPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const dispatch = useAppDispatch();
 
-  const category = useAppSelector((s) => s.categories.items.find((c) => c.id === id));
+  const categories = useAppSelector((s) => s.categories.items);
+  const category = categories.find((c) => c.id === id);
 
   if (!category) {
     return (
@@ -31,14 +36,34 @@ export default function EditCategoryPage() {
     );
   }
 
-  const handleSubmit = (data: { name: string; slug: string; description: string }) => {
+  const handleSubmit = async (data: CategoryFormSubmitData) => {
     dispatch(
       updateCategory({
         ...category,
         ...data,
       })
     );
-    dispatch(showToast(`Đã cập nhật danh mục "${data.name}".`));
+    try {
+      await apiUpdateCategoryStatus({
+        id: category.id,
+        categoryId: category.categoryId,
+        category_active: data.category_active,
+        category_name: data.name,
+        category_slug: data.slug,
+        category_description: data.description,
+        category_thumb: data.image,
+        parent_id: data.parentId,
+      });
+    } catch {
+      // Keep local update if upstream endpoint is unavailable
+    }
+    dispatch(
+      showToast(
+        `Đã cập nhật danh mục "${data.name}" (${
+          data.category_active ? 'Active' : 'Inactive'
+        }).`
+      )
+    );
     dispatch(setActiveTab('categories'));
     router.push('/categories');
   };
@@ -50,5 +75,12 @@ export default function EditCategoryPage() {
     router.push('/categories');
   };
 
-  return <CategoryFormView initialData={category} onSubmit={handleSubmit} onDelete={handleDelete} />;
+  return (
+    <CategoryFormView
+      initialData={category}
+      categories={categories}
+      onSubmit={handleSubmit}
+      onDelete={handleDelete}
+    />
+  );
 }

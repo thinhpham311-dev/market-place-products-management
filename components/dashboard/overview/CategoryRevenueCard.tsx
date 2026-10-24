@@ -20,10 +20,7 @@ export const CategoryRevenueCard: React.FC<CategoryRevenueCardProps> = ({
   categorySales,
   totalCategories,
 }) => {
-  const { t, tc } = useTranslation();
-
-  const formatCurrency = (amount: number) =>
-    new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
+  const { t, tc, formatCurrency } = useTranslation();
 
   return (
     <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-6 shadow-sm flex flex-col justify-between">

@@ -26,10 +26,7 @@ export const ProductGridView: React.FC<ProductGridViewProps> = ({
   onDeleteProduct,
   onOpenPublishModal,
 }) => {
-  const { t, tp, tc } = useTranslation();
-
-  const formatCurrency = (val: number) =>
-    new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(val);
+  const { t, tp, tc, formatCurrency, formatNumber } = useTranslation();
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
@@ -157,7 +154,7 @@ export const ProductGridView: React.FC<ProductGridViewProps> = ({
               {/* Actions footer */}
               <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
                 <span className="text-[11px] text-slate-500">
-                  {t('table.col_sold')}: <strong>{p.soldCount}</strong>
+                  {t('table.col_sold')}: <strong>{formatNumber(p.soldCount)}</strong>
                 </span>
                 <div className="flex items-center gap-1">
                   <button

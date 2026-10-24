@@ -16,10 +16,7 @@ export const TopSellingProductsCard: React.FC<TopSellingProductsCardProps> = ({
   onSelectProduct,
   onNavigateProducts,
 }) => {
-  const { t, tp, tc } = useTranslation();
-
-  const formatCurrency = (amount: number) =>
-    new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
+  const { t, tp, tc, formatCurrency, formatNumber } = useTranslation();
 
   return (
     <div className="lg:col-span-2 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-6 shadow-sm">
@@ -79,7 +76,7 @@ export const TopSellingProductsCard: React.FC<TopSellingProductsCardProps> = ({
                   {formatCurrency(product.revenue)}
                 </p>
                 <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium mt-0.5">
-                  {product.soldCount.toLocaleString('vi-VN')} {t('kpi.sold_units')}
+                  {formatNumber(product.soldCount)} {t('kpi.sold_units')}
                 </p>
               </div>
             </div>

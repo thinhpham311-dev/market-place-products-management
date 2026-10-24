@@ -1,4 +1,5 @@
 import { PERSIST_STORE_NAME } from "@/constants/app/app.constant";
+import { getLanguageFromHostname } from "@/lib/i18n/location-subdomain";
 import { translations, type TranslationKey } from "@/lib/i18n/translations";
 import { SUPPORTED_LANGUAGES, type SupportedLanguage } from "@/store/settings/languageSlice";
 
@@ -67,7 +68,10 @@ function readLanguageFromNavigator(): SupportedLanguage | null {
 }
 
 export function getCurrentLanguage(): SupportedLanguage {
+  const subdomainLanguage =
+    typeof window !== "undefined" ? getLanguageFromHostname(window.location.hostname) : null;
   return (
+    subdomainLanguage ??
     readLanguageFromPersistedStore() ??
     readLanguageFromDocument() ??
     readLanguageFromNavigator() ??

@@ -1,7 +1,6 @@
 import { createSelector } from '@reduxjs/toolkit';
 import { RootState } from '@/store';
 import { DashboardMetrics } from '@/types/product';
-import { mockMetrics } from '@/data/mockProducts';
 
 const selectProducts = (state: RootState) => state.products.items;
 
@@ -33,7 +32,7 @@ export const selectDashboardMetrics = createSelector(
       totalInventoryValue,
       totalRevenue,
       totalSold,
-      growthRate: mockMetrics.growthRate,
+      growthRate: 0,
     };
   }
 );

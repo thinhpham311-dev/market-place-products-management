@@ -19,13 +19,11 @@ interface ProductDetailViewProps {
 export const ProductDetailView: React.FC<ProductDetailViewProps> = ({ product }) => {
   const router = useRouter();
   const dispatch = useAppDispatch();
-  const { t, tp, tc } = useTranslation();
+  const { t, tp, tc, formatCurrency, formatNumber } = useTranslation();
   const [activeImage, setActiveImage] = useState<string>('');
   const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   const currentImage = activeImage || product.thumbnail;
-  const formatCurrency = (val: number) =>
-    new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(val);
 
   const handleConfirmDelete = () => {
     dispatch(deleteProduct(product.id));
@@ -150,13 +148,13 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({ product })
               </div>
               <div className="grid grid-cols-2 gap-2 text-xs pt-2 border-t border-slate-200 dark:border-slate-700 text-slate-500">
                 <div>
-                  Giá vốn:{' '}
+                  {t('detail.cost_price')}{' '}
                   <strong className="text-slate-700 dark:text-slate-200">
                     {formatCurrency(product.costPrice)}
                   </strong>
                 </div>
                 <div>
-                  Lãi gộp:{' '}
+                  {t('detail.gross_profit')}{' '}
                   <strong className="text-emerald-600">
                     {formatCurrency(product.price - product.costPrice)}
                   </strong>
@@ -185,7 +183,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({ product })
               <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs">
                 <span className="text-slate-400 block text-[11px]">{t('table.col_sold')}</span>
                 <span className="text-base font-bold text-slate-900 dark:text-white mt-0.5 block">
-                  {product.soldCount.toLocaleString('vi-VN')}
+                  {formatNumber(product.soldCount)}
                 </span>
                 <span className="text-[10px] text-emerald-600 font-medium">
                   {formatCurrency(product.revenue)}
@@ -215,12 +213,13 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({ product })
             {/* Description */}
             {product.description && (
               <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
-                <span className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
-                  Mô tả chi tiết:
+                <span className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1.5">
+                  {t('detail.description')}
                 </span>
-                <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed whitespace-pre-line">
-                  {product.description}
-                </p>
+                <div
+                  className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed whitespace-pre-line [&_p]:mb-2 [&_p:last-child]:mb-0 [&_ul]:list-disc [&_ul]:pl-4 [&_ol]:list-decimal [&_ol]:pl-4"
+                  dangerouslySetInnerHTML={{ __html: product.description }}
+                />
               </div>
             )}
           </div>

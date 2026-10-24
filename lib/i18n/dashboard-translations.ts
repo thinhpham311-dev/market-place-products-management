@@ -259,6 +259,18 @@ export const dashboardTranslations = {
     'delete_modal.confirm_btn': 'Xác nhận xóa',
     'delete_modal.cancel_btn': 'Giữ lại sản phẩm',
     'delete_modal.success_toast': 'Đã xóa sản phẩm thành công.',
+
+    // Pricing & Detail Labels
+    'pricing.selling_price': 'Giá bán ưu đãi',
+    'pricing.original_price': 'Giá niêm yết gốc',
+    'pricing.cost_price': 'Giá vốn nhập kho',
+    'pricing.profit_estimator_title': 'Ước tính Tỷ suất Lợi nhuận gộp',
+    'pricing.gross_profit_per_unit': 'Lãi gộp / sản phẩm',
+    'pricing.profit_margin': 'Biên lợi nhuận',
+    'pricing.discount_rate': 'Mức giảm giá',
+    'detail.cost_price': 'Giá vốn:',
+    'detail.gross_profit': 'Lãi gộp:',
+    'detail.description': 'Mô tả chi tiết:',
   },
   en: {
     // Sidebar
@@ -518,6 +530,18 @@ export const dashboardTranslations = {
     'delete_modal.confirm_btn': 'Delete Now',
     'delete_modal.cancel_btn': 'Keep Product',
     'delete_modal.success_toast': 'Product deleted successfully.',
+
+    // Pricing & Detail Labels
+    'pricing.selling_price': 'Selling Price',
+    'pricing.original_price': 'Compare-at Price',
+    'pricing.cost_price': 'Unit Cost Price',
+    'pricing.profit_estimator_title': 'Estimated Gross Profit Calculator',
+    'pricing.gross_profit_per_unit': 'Gross Profit / Unit',
+    'pricing.profit_margin': 'Profit Margin',
+    'pricing.discount_rate': 'Discount Rate',
+    'detail.cost_price': 'Cost Price:',
+    'detail.gross_profit': 'Gross Profit:',
+    'detail.description': 'Product Description:',
   },
   ja: {
     // Sidebar
@@ -777,6 +801,18 @@ export const dashboardTranslations = {
     'delete_modal.confirm_btn': '削除する',
     'delete_modal.cancel_btn': 'キャンセル',
     'delete_modal.success_toast': '商品を削除しました。',
+
+    // Pricing & Detail Labels
+    'pricing.selling_price': '販売価格',
+    'pricing.original_price': '定価（比較用）',
+    'pricing.cost_price': '仕入原価',
+    'pricing.profit_estimator_title': '粗利益・利益率シミュレーション',
+    'pricing.gross_profit_per_unit': '1個あたり粗利',
+    'pricing.profit_margin': '粗利益率',
+    'pricing.discount_rate': '割引率',
+    'detail.cost_price': '原価:',
+    'detail.gross_profit': '粗利:',
+    'detail.description': '商品説明:',
   },
 } as const;
 

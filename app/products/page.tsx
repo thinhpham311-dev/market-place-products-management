@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useCallback, useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { showToast } from '@/store/slices/uiSlice';
 import {
@@ -12,7 +12,16 @@ import {
   bulkPublish,
   bulkUpdateStatus,
   bulkDelete,
+  setDraftedProducts,
+  setPublishedProducts,
 } from '@/store/slices/productsSlice';
+import {
+  apiGetDraftedSpuList,
+  apiGetPublishedSpuList,
+  extractSpuArray,
+  mapSpuToProduct,
+} from '@/services/ProductService';
+import { useHydrated } from '@/store/StoreProvider';
 import { Product, ProductStatus } from '@/types/product';
 import { ProductList } from '@/components/dashboard/ProductList';
 import { DeleteProductModal } from '@/components/dashboard/products/DeleteProductModal';
@@ -23,13 +32,54 @@ import { Button } from '@/components/ui/Button';
 export default function ProductsPage() {
   const dispatch = useAppDispatch();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const isHydrated = useHydrated();
   const { t } = useTranslation();
 
   const products = useAppSelector((s) => s.products.items);
   const categories = useAppSelector((s) => s.categories.items);
   const globalSearch = useAppSelector((s) => s.ui.globalSearch);
+  const signedIn = useAppSelector((s) => s.auth.session.signedIn);
+  const accessToken = useAppSelector((s) => s.auth.session.token);
+  const userId = useAppSelector((s) => s.auth.user?.id);
 
   const [pendingDeleteIds, setPendingDeleteIds] = useState<string[]>([]);
+  const activeTab = searchParams.get('tab');
+
+  const fetchSpuProducts = useCallback(async () => {
+    if (!isHydrated || !signedIn || !accessToken) {
+      return;
+    }
+
+    const [publishedRes, draftedRes] = await Promise.allSettled([
+      apiGetPublishedSpuList(),
+      apiGetDraftedSpuList(),
+    ]);
+
+    if (publishedRes.status === 'fulfilled') {
+      const rawPublished = extractSpuArray(publishedRes.value.data);
+      if (Array.isArray(rawPublished)) {
+        const mappedPublished = rawPublished.map((item, idx) =>
+          mapSpuToProduct(item, idx, 'active')
+        );
+        dispatch(setPublishedProducts(mappedPublished));
+      }
+    }
+
+    if (draftedRes.status === 'fulfilled') {
+      const rawDrafted = extractSpuArray(draftedRes.value.data);
+      if (Array.isArray(rawDrafted)) {
+        const mappedDrafts = rawDrafted.map((item, idx) =>
+          mapSpuToProduct(item, idx, 'draft')
+        );
+        dispatch(setDraftedProducts(mappedDrafts));
+      }
+    }
+  }, [isHydrated, signedIn, accessToken, userId, dispatch]);
+
+  useEffect(() => {
+    void fetchSpuProducts();
+  }, [fetchSpuProducts, activeTab]);
 
   const handleOpenCreate = () => router.push('/products/new');
   const handleOpenEdit = (product: Product) => router.push(`/products/${product.id}/edit`);

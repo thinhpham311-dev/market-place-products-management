@@ -103,11 +103,15 @@ export const SeoChannelsTab: React.FC<SeoChannelsTabProps> = ({
           <p className="text-emerald-700 dark:text-emerald-400 text-[11px]">
             https://novastore.vn/products/{sku.toLowerCase()}
           </p>
-          <p className="text-slate-600 dark:text-slate-300 text-xs mt-0.5 line-clamp-2">
-            {seoDescription ||
-              shortDescription ||
-              'Mua sản phẩm chính hãng với giá tốt nhất tại NovaStore. Giao hàng hỏa tốc và bảo hành chu đáo.'}
-          </p>
+          <div
+            className="text-slate-600 dark:text-slate-300 text-xs mt-0.5 line-clamp-2"
+            dangerouslySetInnerHTML={{
+              __html:
+                seoDescription ||
+                shortDescription ||
+                'Mua sản phẩm chính hãng với giá tốt nhất tại NovaStore. Giao hàng hỏa tốc và bảo hành chu đáo.',
+            }}
+          />
         </div>
       </div>
     </div>

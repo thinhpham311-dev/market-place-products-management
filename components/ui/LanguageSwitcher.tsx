@@ -3,13 +3,13 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { SupportedLanguage } from '@/store/settings/languageSlice';
 import { useTranslation } from '@/lib/i18n/useTranslation';
-import { showToast } from '@/store/slices/uiSlice';
-import { useAppDispatch } from '@/store/hooks';
 import { Icons } from '@/components/ui/Icons';
 
 export const LANGUAGE_OPTIONS: {
   id: SupportedLanguage;
   code: string;
+  subdomain: string;
+  currency: string;
   label: string;
   nativeLabel: string;
   flag: string;
@@ -18,32 +18,37 @@ export const LANGUAGE_OPTIONS: {
   {
     id: 'vi',
     code: 'VI',
+    subdomain: 'vn',
+    currency: 'VND (₫)',
     label: 'Tiếng Việt',
     nativeLabel: 'Tiếng Việt (VN)',
     flag: '🇻🇳',
-    desc: 'Ngôn ngữ mặc định cho thị trường Việt Nam (VND)',
+    desc: 'Ngôn ngữ mặc định cho thị trường Việt Nam (vn.* • VND - ₫)',
   },
   {
     id: 'en',
     code: 'EN',
+    subdomain: 'en',
+    currency: 'USD ($)',
     label: 'English',
     nativeLabel: 'English (US)',
     flag: '🇺🇸',
-    desc: 'International English interface for global operations',
+    desc: 'International English interface for global operations (en.* • USD - $)',
   },
   {
     id: 'ja',
     code: 'JA',
+    subdomain: 'jp',
+    currency: 'JPY (¥)',
     label: '日本語',
     nativeLabel: '日本語 (JP)',
     flag: '🇯🇵',
-    desc: '日本市場およびクロスボーダーEC向けの日本語表示',
+    desc: '日本市場およびクロスボーダーEC向けの日本語表示 (jp.* • JPY - ¥)',
   },
 ];
 
 export const LanguageSwitcher: React.FC<{ className?: string }> = ({ className = '' }) => {
   const { lang, setLanguage } = useTranslation();
-  const dispatch = useAppDispatch();
   const [open, setOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -61,17 +66,8 @@ export const LanguageSwitcher: React.FC<{ className?: string }> = ({ className =
     LANGUAGE_OPTIONS.find((opt) => opt.id === lang) || LANGUAGE_OPTIONS[0];
 
   const handleSelect = (opt: (typeof LANGUAGE_OPTIONS)[number]) => {
-    setLanguage(opt.id);
     setOpen(false);
-    dispatch(
-      showToast(
-        opt.id === 'vi'
-          ? 'Đã chuyển ngôn ngữ sang Tiếng Việt'
-          : opt.id === 'en'
-          ? 'Language switched to English'
-          : '表示言語を日本語に切り替えました'
-      )
-    );
+    setLanguage(opt.id);
   };
 
   return (
@@ -93,7 +89,7 @@ export const LanguageSwitcher: React.FC<{ className?: string }> = ({ className =
       </button>
 
       {open && (
-        <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 p-1.5 z-50 animate-in fade-in zoom-in-95">
+        <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 p-1.5 z-50 animate-in fade-in zoom-in-95">
           {LANGUAGE_OPTIONS.map((opt) => {
             const isSelected = opt.id === lang;
             return (
@@ -109,7 +105,12 @@ export const LanguageSwitcher: React.FC<{ className?: string }> = ({ className =
               >
                 <div className="flex items-center gap-2.5">
                   <span className="text-base leading-none">{opt.flag}</span>
-                  <span>{opt.nativeLabel}</span>
+                  <div className="text-left">
+                    <span className="block">{opt.nativeLabel}</span>
+                    <span className="block text-[10px] font-mono text-slate-400">
+                      {opt.subdomain}.localhost • {opt.currency}
+                    </span>
+                  </div>
                 </div>
                 {isSelected && <Icons.Check size={14} className="text-indigo-600 dark:text-indigo-400" />}
               </button>
@@ -123,7 +124,6 @@ export const LanguageSwitcher: React.FC<{ className?: string }> = ({ className =
 
 export const LanguageSelectorCards: React.FC = () => {
   const { lang, setLanguage } = useTranslation();
-  const dispatch = useAppDispatch();
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -135,15 +135,6 @@ export const LanguageSelectorCards: React.FC = () => {
             type="button"
             onClick={() => {
               setLanguage(opt.id);
-              dispatch(
-                showToast(
-                  opt.id === 'vi'
-                    ? 'Đã chuyển ngôn ngữ sang Tiếng Việt'
-                    : opt.id === 'en'
-                    ? 'Language switched to English'
-                    : '表示言語を日本語に切り替えました'
-                )
-              );
             }}
             className={`p-4 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between gap-3 ${
               active
@@ -155,11 +146,16 @@ export const LanguageSelectorCards: React.FC = () => {
               <div className="w-9 h-9 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-700 flex items-center justify-center text-lg shadow-xs">
                 {opt.flag}
               </div>
-              {active && (
-                <span className="w-5 h-5 rounded-full bg-indigo-600 text-white flex items-center justify-center">
-                  <Icons.Check size={12} />
+              <div className="flex items-center gap-1.5">
+                <span className="px-2 py-0.5 rounded-md bg-slate-200/70 dark:bg-slate-800 text-[10px] font-mono font-semibold text-slate-600 dark:text-slate-300">
+                  {opt.subdomain}.* • {opt.currency}
                 </span>
-              )}
+                {active && (
+                  <span className="w-5 h-5 rounded-full bg-indigo-600 text-white flex items-center justify-center">
+                    <Icons.Check size={12} />
+                  </span>
+                )}
+              </div>
             </div>
             <div>
               <p className="text-xs font-bold text-slate-900 dark:text-white">

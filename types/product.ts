@@ -1,5 +1,27 @@
 export type ProductStatus = 'active' | 'out_of_stock' | 'draft' | 'archived';
 
+export interface SpuVariationOption {
+  label: string;
+  value: string;
+  image: string;
+}
+
+export interface SpuVariationGroup {
+  label: string;
+  value: SpuVariationOption[];
+}
+
+export interface SpuSkuItem {
+  sku_tier_idx: number[];
+  sku_price: number;
+  sku_stock: number;
+}
+
+export interface SpuProductAttributes {
+  attribute_id: number;
+  attribute_value: Array<{ value_id: number }>;
+}
+
 export interface ProductVariant {
   id: string;
   sku: string;
@@ -15,12 +37,18 @@ export interface ProductVariant {
 
 export interface ProductCategory {
   id: string;
+  categoryId?: string | number;
   name: string;
   slug: string;
   description?: string;
   icon?: string;
+  image?: string;
   productCount: number;
   parentId?: string | null;
+  category_active?: boolean;
+  left?: number;
+  right?: number;
+  children?: ProductCategory[];
 }
 
 export interface Product {
@@ -61,6 +89,13 @@ export interface Product {
   hasVariants: boolean;
   variantAttributes?: { name: string; values: string[] }[];
   variants?: ProductVariant[];
+
+  // SPU / SKU API fields
+  product_brand?: string;
+  product_category?: string[];
+  product_attributes?: SpuProductAttributes;
+  product_variations?: SpuVariationGroup[];
+  sku_list?: SpuSkuItem[];
   
   // Sales channels & SEO
   channels: ('shopee' | 'tiktok' | 'lazada' | 'website')[];

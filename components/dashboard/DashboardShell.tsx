@@ -12,9 +12,29 @@ import {
   clearToast,
   showToast,
 } from '@/store/slices/uiSlice';
-import { onSignOutSuccess } from '@/store/auth/sessionSlice';
+import {
+  onSignOutSuccess,
+} from '@/store/auth/sessionSlice';
 import { userLoggedOut } from '@/store/auth/userSlice';
+import {
+  setDraftedProducts,
+  setPublishedProducts,
+} from '@/store/slices/productsSlice';
+import { setCategories } from '@/store/slices/categoriesSlice';
+import { useHydrated } from '@/store/StoreProvider';
 import { apiSignOut } from '@/services/AuthService';
+import { refreshAccessTokenSingleFlight } from '@/services/BaseService';
+import {
+  apiGetDraftedSpuList,
+  apiGetPublishedSpuList,
+  extractSpuArray,
+  mapSpuToProduct,
+} from '@/services/ProductService';
+import {
+  apiGetCategoryAllList,
+  extractCategoryArray,
+  mapRawCategoryList,
+} from '@/services/CategoryService';
 import { Sidebar, TabType, TAB_ROUTES } from '@/components/dashboard/Sidebar';
 import { Header } from '@/components/dashboard/Header';
 import { Icons } from '@/components/ui/Icons';
@@ -22,6 +42,28 @@ import { useThemeSync } from '@/components/ui/ThemeToggle';
 import { useLanguageSync } from '@/lib/i18n/useTranslation';
 
 const AUTH_PATHS = ['/login', '/sign-in', '/register', '/sign-up'];
+
+function getJwtExpirationMs(token?: string): number | null {
+  if (!token) return null;
+  const parts = token.split('.');
+  if (parts.length !== 3) return null;
+  try {
+    const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(
+      atob(base64)
+        .split('')
+        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .join('')
+    );
+    const parsed = JSON.parse(jsonPayload) as { exp?: number };
+    if (typeof parsed.exp === 'number') {
+      return parsed.exp * 1000;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
 
 function getActiveTabFromPathname(pathname: string): TabType {
   if (pathname.startsWith('/products')) return 'products';
@@ -36,11 +78,15 @@ export const DashboardShell: React.FC<{ children: React.ReactNode }> = ({ childr
   const dispatch = useAppDispatch();
   const router = useRouter();
   const pathname = usePathname();
+  const isHydrated = useHydrated();
 
   useThemeSync();
   useLanguageSync();
 
   const signedIn = useAppSelector((s) => s.auth.session.signedIn);
+  const accessToken = useAppSelector((s) => s.auth.session.token);
+  const refreshToken = useAppSelector((s) => s.auth.session.refreshToken);
+  const keepMeSignedIn = useAppSelector((s) => s.auth.session.keepMeSignedIn);
   const user = useAppSelector((s) => s.auth.user);
 
   const categories = useAppSelector((s) => s.categories.items);
@@ -60,12 +106,125 @@ export const DashboardShell: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   }, [currentTab, isAuthPage, dispatch]);
 
-  // Redirect unauthenticated users to /login when accessing protected pages
+  // Fetch published (/v1/api/product/spu/published/list), drafted (/v1/api/product/spu/drafted/list) & categories (/v1/api/category/all/list) after hydration & sign-in
   useEffect(() => {
+    if (!isHydrated || !signedIn || isAuthPage || !accessToken) {
+      return;
+    }
+
+    let cancelled = false;
+    const loadSpuAndCategories = async () => {
+      const [publishedRes, draftedRes, categoriesRes] = await Promise.allSettled([
+        apiGetPublishedSpuList(),
+        apiGetDraftedSpuList(),
+        apiGetCategoryAllList(),
+      ]);
+
+      if (cancelled) return;
+
+      if (publishedRes.status === 'fulfilled') {
+        const rawPublished = extractSpuArray(publishedRes.value.data);
+        if (Array.isArray(rawPublished)) {
+          const mappedPublished = rawPublished.map((item, idx) =>
+            mapSpuToProduct(item, idx, 'active')
+          );
+          dispatch(setPublishedProducts(mappedPublished));
+        }
+      }
+
+      if (draftedRes.status === 'fulfilled') {
+        const rawDrafted = extractSpuArray(draftedRes.value.data);
+        if (Array.isArray(rawDrafted)) {
+          const mappedDrafted = rawDrafted.map((item, idx) =>
+            mapSpuToProduct(item, idx, 'draft')
+          );
+          dispatch(setDraftedProducts(mappedDrafted));
+        }
+      }
+
+      if (categoriesRes.status === 'fulfilled') {
+        const rawCategories = extractCategoryArray(categoriesRes.value.data);
+        if (Array.isArray(rawCategories)) {
+          const mappedCategories = mapRawCategoryList(rawCategories);
+          dispatch(setCategories(mappedCategories));
+        }
+      }
+    };
+
+    void loadSpuAndCategories();
+    return () => {
+      cancelled = true;
+    };
+  }, [isHydrated, signedIn, isAuthPage, accessToken, user?.id, dispatch]);
+
+  // Redirect unauthenticated users to /login when accessing protected pages after store hydration
+  useEffect(() => {
+    if (!isHydrated) return;
     if (!signedIn && !isAuthPage) {
       router.replace(`/login?redirectUrl=${encodeURIComponent(pathname)}`);
     }
-  }, [signedIn, isAuthPage, pathname, router]);
+  }, [isHydrated, signedIn, isAuthPage, pathname, router]);
+
+  // Automatically refresh token if keepMeSignedIn is checked; otherwise auto-logout when accessToken expires
+  useEffect(() => {
+    if (!isHydrated || !signedIn || isAuthPage || !accessToken) return;
+
+    const expMs = getJwtExpirationMs(accessToken);
+    if (!expMs) return;
+
+    const handleTokenExpired = async () => {
+      if (keepMeSignedIn === false) {
+        try {
+          await apiSignOut({
+            id: user?.id,
+            email: user?.email,
+          });
+        } catch {
+          // Proceed with local logout even if upstream signout fails
+        } finally {
+          dispatch(onSignOutSuccess());
+          dispatch(userLoggedOut());
+          dispatch(showToast('Phiên đăng nhập đã hết hạn. Đã tự động đăng xuất.'));
+          router.replace('/login');
+        }
+        return;
+      }
+
+      try {
+        await refreshAccessTokenSingleFlight();
+      } catch (err: unknown) {
+        const status = (err as { response?: { status?: number } })?.response?.status;
+        if (status === 401 || status === 403) {
+          dispatch(onSignOutSuccess());
+          dispatch(userLoggedOut());
+          router.replace('/login');
+        }
+      }
+    };
+
+    const delayMs = expMs - Date.now();
+    if (delayMs <= 0) {
+      void handleTokenExpired();
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      void handleTokenExpired();
+    }, delayMs);
+
+    return () => clearTimeout(timer);
+  }, [
+    isHydrated,
+    signedIn,
+    isAuthPage,
+    accessToken,
+    refreshToken,
+    keepMeSignedIn,
+    user?.id,
+    user?.email,
+    dispatch,
+    router,
+  ]);
 
   // Toast auto-dismiss
   useEffect(() => {
@@ -126,7 +285,7 @@ export const DashboardShell: React.FC<{ children: React.ReactNode }> = ({ childr
     );
   }
 
-  if (!signedIn) {
+  if (!isHydrated || !signedIn) {
     return null;
   }
 

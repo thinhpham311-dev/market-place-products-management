@@ -20,15 +20,12 @@ export const DeleteProductModal: React.FC<DeleteProductModalProps> = ({
   onClose,
   onConfirm,
 }) => {
-  const { t, tp, tc } = useTranslation();
+  const { t, tp, tc, formatCurrency } = useTranslation();
 
   if (!isOpen || productsToDelete.length === 0) return null;
 
   const isBulk = productsToDelete.length > 1;
   const singleProduct = productsToDelete[0];
-
-  const formatCurrency = (val: number) =>
-    new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(val);
 
   return (
     <Modal
