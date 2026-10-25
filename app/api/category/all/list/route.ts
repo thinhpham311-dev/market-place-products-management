@@ -88,6 +88,39 @@ function getCategoryItemKey(item: any): string {
   );
 }
 
+function mergeCategoryChildren(children1?: any[], children2?: any[]): any[] | undefined {
+  if (!children1 && !children2) return undefined;
+  if (!children2 || children2.length === 0) return children1;
+  if (!children1 || children1.length === 0) return children2;
+
+  const childMap = new Map<string, any>();
+  for (const c of children1) {
+    if (c && typeof c === "object") {
+      childMap.set(getCategoryItemKey(c), c);
+    }
+  }
+  for (const c of children2) {
+    if (c && typeof c === "object") {
+      const k = getCategoryItemKey(c);
+      const existing = childMap.get(k);
+      if (existing) {
+        childMap.set(k, {
+          ...existing,
+          ...c,
+          category_active:
+            c.category_active !== undefined
+              ? c.category_active
+              : existing.category_active,
+          children: mergeCategoryChildren(existing.children, c.children),
+        });
+      } else {
+        childMap.set(k, c);
+      }
+    }
+  }
+  return Array.from(childMap.values());
+}
+
 function mergeCategoryPayloads(primary: any, secondary: any): any {
   const arr1 = extractArrayFromPayload(primary);
   const arr2 = extractArrayFromPayload(secondary);
@@ -102,6 +135,13 @@ function mergeCategoryPayloads(primary: any, secondary: any): any {
     arr2.filter((i) => i && typeof i === "object").map(getCategoryItemKey),
   );
 
+  const byKey2 = new Map<string, any>();
+  for (const item of arr2) {
+    if (item && typeof item === "object") {
+      byKey2.set(getCategoryItemKey(item), item);
+    }
+  }
+
   const seen = new Set<string>();
   const merged: any[] = [];
 
@@ -110,17 +150,32 @@ function mergeCategoryPayloads(primary: any, secondary: any): any {
     const key = getCategoryItemKey(item);
     if (!seen.has(key)) {
       seen.add(key);
-      const inferredActive =
+      const matchedInSecondary = byKey2.get(key);
+      const explicitActive =
         item.category_active !== undefined
           ? item.category_active
-          : !keys2.has(key)
-            ? true
+          : matchedInSecondary?.category_active !== undefined
+            ? matchedInSecondary.category_active
             : undefined;
-      merged.push(
-        inferredActive !== undefined
-          ? { ...item, category_active: inferredActive }
-          : item,
+      const inferredActive =
+        explicitActive !== undefined
+          ? explicitActive
+          : keys2.has(key) && keys1.size > keys2.size
+            ? false
+            : undefined;
+
+      const mergedChildren = mergeCategoryChildren(
+        item.children,
+        matchedInSecondary?.children,
       );
+
+      merged.push({
+        ...item,
+        ...(inferredActive !== undefined
+          ? { category_active: inferredActive }
+          : {}),
+        ...(mergedChildren ? { children: mergedChildren } : {}),
+      });
     }
   }
 
@@ -135,11 +190,12 @@ function mergeCategoryPayloads(primary: any, secondary: any): any {
           : !keys1.has(key)
             ? false
             : undefined;
-      merged.push(
-        inferredActive !== undefined
-          ? { ...item, category_active: inferredActive }
-          : item,
-      );
+      merged.push({
+        ...item,
+        ...(inferredActive !== undefined
+          ? { category_active: inferredActive }
+          : {}),
+      });
     }
   }
 

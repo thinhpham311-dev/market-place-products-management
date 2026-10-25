@@ -4,14 +4,18 @@ import React from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { updateCategory, deleteCategory } from '@/store/slices/categoriesSlice';
-import { setActiveTab, showToast } from '@/store/slices/uiSlice';
+import { setActiveTab, showErrorToast, showToast } from '@/store/slices/uiSlice';
+import { getApiErrorMessage } from '@/lib/http/handleAxiosError';
 import { Button } from '@/components/ui/Button';
 import { Icons } from '@/components/ui/Icons';
 import {
   CategoryFormSubmitData,
   CategoryFormView,
 } from '@/components/dashboard/categories/CategoryFormView';
-import { apiUpdateCategoryStatus } from '@/services/CategoryService';
+import {
+  apiDeleteCategory,
+  apiUpdateCategoryStatus,
+} from '@/services/CategoryService';
 
 export default function EditCategoryPage() {
   const { id } = useParams<{ id: string }>();
@@ -37,12 +41,6 @@ export default function EditCategoryPage() {
   }
 
   const handleSubmit = async (data: CategoryFormSubmitData) => {
-    dispatch(
-      updateCategory({
-        ...category,
-        ...data,
-      })
-    );
     try {
       await apiUpdateCategoryStatus({
         id: category.id,
@@ -54,25 +52,56 @@ export default function EditCategoryPage() {
         category_thumb: data.image,
         parent_id: data.parentId,
       });
-    } catch {
-      // Keep local update if upstream endpoint is unavailable
+
+      dispatch(
+        updateCategory({
+          ...category,
+          ...data,
+        })
+      );
+      dispatch(
+        showToast(
+          `Đã cập nhật danh mục "${data.name}" (${
+            data.category_active ? 'Active' : 'Inactive'
+          }).`
+        )
+      );
+      dispatch(setActiveTab('categories'));
+      router.push('/categories');
+    } catch (err: unknown) {
+      const msg = getApiErrorMessage(err);
+      dispatch(showErrorToast(msg));
+      throw new Error(msg);
     }
-    dispatch(
-      showToast(
-        `Đã cập nhật danh mục "${data.name}" (${
-          data.category_active ? 'Active' : 'Inactive'
-        }).`
-      )
-    );
-    dispatch(setActiveTab('categories'));
-    router.push('/categories');
   };
 
-  const handleDelete = () => {
-    dispatch(deleteCategory(category.id));
-    dispatch(showToast(`Đã xóa danh mục "${category.name}" thành công.`));
-    dispatch(setActiveTab('categories'));
-    router.push('/categories');
+  const handleDelete = async () => {
+    try {
+      const primaryId =
+        category.categoryId !== undefined && category.categoryId !== null
+          ? String(category.categoryId).trim()
+          : category.id;
+      const fallbackId =
+        category.id !== primaryId ? category.id : undefined;
+
+      await apiDeleteCategory(primaryId, fallbackId);
+      dispatch(deleteCategory(category.id));
+      dispatch(
+        showToast(
+          `Đã xóa danh mục "${category.name}" thành công (/v1/api/category/delete/${primaryId}).`
+        )
+      );
+      dispatch(setActiveTab('categories'));
+      router.push('/categories');
+    } catch (err: unknown) {
+      const msg = getApiErrorMessage(err);
+      dispatch(
+        showErrorToast(
+          msg || `Không thể xóa danh mục "${category.name}". Vui lòng thử lại.`
+        )
+      );
+      throw new Error(msg);
+    }
   };
 
   return (

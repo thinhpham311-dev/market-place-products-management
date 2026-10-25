@@ -7,8 +7,10 @@ import {
   setCategories,
   toggleCategoryStatus,
 } from '@/store/slices/categoriesSlice';
-import { showToast } from '@/store/slices/uiSlice';
+import { showErrorToast, showToast } from '@/store/slices/uiSlice';
+import { getApiErrorMessage } from '@/lib/http/handleAxiosError';
 import {
+  apiDeleteCategory,
   apiGetCategoryAllList,
   apiUpdateCategoryStatus,
   extractCategoryArray,
@@ -31,6 +33,7 @@ export default function CategoriesPage() {
 
   const [pendingCategoryId, setPendingCategoryId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [isDeletingCategory, setIsDeletingCategory] = useState<boolean>(false);
   const [updatingCategoryIds, setUpdatingCategoryIds] = useState<
     Record<string, boolean>
   >({});
@@ -61,11 +64,38 @@ export default function CategoriesPage() {
     ? products.filter((p) => p.categoryId === targetCategory.id).length
     : 0;
 
-  const handleConfirmDeleteCategory = () => {
-    if (!targetCategory) return;
-    dispatch(deleteCategory(targetCategory.id));
-    dispatch(showToast(`Đã xóa danh mục "${tc(targetCategory.name)}" thành công.`));
-    setPendingCategoryId(null);
+  const handleConfirmDeleteCategory = async () => {
+    if (!targetCategory || isDeletingCategory) return;
+    const catId = targetCategory.id;
+    const catName = tc(targetCategory.name);
+    const primaryId =
+      targetCategory.categoryId !== undefined && targetCategory.categoryId !== null
+        ? String(targetCategory.categoryId).trim()
+        : targetCategory.id;
+    const fallbackId =
+      targetCategory.id !== primaryId ? targetCategory.id : undefined;
+
+    setIsDeletingCategory(true);
+    try {
+      await apiDeleteCategory(primaryId, fallbackId);
+      dispatch(deleteCategory(catId));
+      dispatch(
+        showToast(
+          `Đã xóa danh mục "${catName}" thành công (/v1/api/category/delete/${primaryId}).`
+        )
+      );
+      setPendingCategoryId(null);
+      void fetchCategories();
+    } catch (err: unknown) {
+      const msg = getApiErrorMessage(err);
+      dispatch(
+        showErrorToast(
+          msg || `Không thể xóa danh mục "${catName}". Vui lòng thử lại.`
+        )
+      );
+    } finally {
+      setIsDeletingCategory(false);
+    }
   };
 
   const handleToggleCategoryStatus = async (
@@ -88,6 +118,11 @@ export default function CategoriesPage() {
         id: category.id,
         categoryId: category.categoryId,
         category_active: nextStatus,
+        category_name: category.name,
+        category_slug: category.slug,
+        category_description: category.description,
+        category_thumb: category.image,
+        parent_id: category.parentId ?? null,
       });
       dispatch(
         showToast(
@@ -96,13 +131,15 @@ export default function CategoriesPage() {
           } (/v1/api/category/update/${targetCategoryId})`
         )
       );
+      void fetchCategories();
     } catch (err: unknown) {
-      const errMsg =
-        (err as { message?: string })?.message ||
-        `Đã chuyển trạng thái "${tc(category.name)}" sang ${
-          nextStatus ? 'Active' : 'Inactive'
-        }`;
-      dispatch(showToast(errMsg));
+      dispatch(
+        toggleCategoryStatus({
+          id: category.id,
+          category_active: !nextStatus,
+        })
+      );
+      dispatch(showErrorToast(getApiErrorMessage(err)));
     } finally {
       setUpdatingCategoryIds((prev) => {
         const next = { ...prev };
@@ -126,6 +163,7 @@ export default function CategoriesPage() {
 
       <ConfirmDeleteModal
         isOpen={Boolean(targetCategory)}
+        isLoading={isDeletingCategory}
         title="Xác nhận xóa danh mục"
         message="Bạn có chắc chắn muốn xóa danh mục này khỏi hệ thống? Các sản phẩm thuộc danh mục này sẽ cần được phân loại lại."
         itemName={targetCategory ? tc(targetCategory.name) : ''}
@@ -135,7 +173,9 @@ export default function CategoriesPage() {
             : ''
         }
         itemMeta={`Đang liên kết với ${targetProductCount} sản phẩm`}
-        onClose={() => setPendingCategoryId(null)}
+        onClose={() => {
+          if (!isDeletingCategory) setPendingCategoryId(null);
+        }}
         onConfirm={handleConfirmDeleteCategory}
       />
     </div>

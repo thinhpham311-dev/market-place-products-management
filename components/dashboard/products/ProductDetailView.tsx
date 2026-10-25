@@ -4,8 +4,22 @@ import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Product } from '@/types/product';
 import { useAppDispatch } from '@/store/hooks';
-import { deleteProduct } from '@/store/slices/productsSlice';
-import { showToast } from '@/store/slices/uiSlice';
+import {
+  deleteProduct,
+  publishProduct,
+  setDraftedProducts,
+  setPublishedProducts,
+} from '@/store/slices/productsSlice';
+import { showErrorToast, showToast } from '@/store/slices/uiSlice';
+import {
+  apiGetDraftedSpuList,
+  apiGetPublishedSpuList,
+  apiPublishSpu,
+  extractSpuArray,
+  isProductPublished,
+  mapSpuToProduct,
+} from '@/services/ProductService';
+import { getApiErrorMessage } from '@/lib/http/handleAxiosError';
 import { useTranslation } from '@/lib/i18n/useTranslation';
 import { Button } from '@/components/ui/Button';
 import { StatusBadge } from '@/components/ui/Badge';
@@ -22,8 +36,55 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({ product })
   const { t, tp, tc, formatCurrency, formatNumber } = useTranslation();
   const [activeImage, setActiveImage] = useState<string>('');
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [isPublishing, setIsPublishing] = useState(false);
 
   const currentImage = activeImage || product.thumbnail;
+  const isPublished = isProductPublished(product);
+
+  const handlePublish = async () => {
+    if (isPublishing) return;
+    setIsPublishing(true);
+    try {
+      await apiPublishSpu(product);
+      dispatch(
+        publishProduct({
+          productId: product.id,
+          channels: product.channels?.length ? product.channels : ['website'],
+          publishMode: 'instant',
+        })
+      );
+      dispatch(showToast(`Đã xuất bản sản phẩm "${tp(product.name)}" thành công!`));
+
+      const [publishedRes, draftedRes] = await Promise.allSettled([
+        apiGetPublishedSpuList(),
+        apiGetDraftedSpuList(),
+      ]);
+      if (publishedRes.status === 'fulfilled') {
+        const rawPublished = extractSpuArray(publishedRes.value.data);
+        if (Array.isArray(rawPublished)) {
+          dispatch(
+            setPublishedProducts(
+              rawPublished.map((item, idx) => mapSpuToProduct(item, idx, 'active'))
+            )
+          );
+        }
+      }
+      if (draftedRes.status === 'fulfilled') {
+        const rawDrafted = extractSpuArray(draftedRes.value.data);
+        if (Array.isArray(rawDrafted)) {
+          dispatch(
+            setDraftedProducts(
+              rawDrafted.map((item, idx) => mapSpuToProduct(item, idx, 'draft'))
+            )
+          );
+        }
+      }
+    } catch (error: unknown) {
+      dispatch(showErrorToast(getApiErrorMessage(error)));
+    } finally {
+      setIsPublishing(false);
+    }
+  };
 
   const handleConfirmDelete = () => {
     dispatch(deleteProduct(product.id));
@@ -56,18 +117,22 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({ product })
         </div>
 
         <div className="flex items-center gap-2">
-          <Button
-            variant="danger"
-            size="sm"
-            onClick={() => setShowDeleteModal(true)}
-            leftIcon={<Icons.Trash2 size={15} />}
-          >
-            {t('table.delete_product')}
-          </Button>
+          {!isPublished && (
+            <Button
+              variant="danger"
+              size="sm"
+              onClick={() => setShowDeleteModal(true)}
+              leftIcon={<Icons.Trash2 size={15} />}
+            >
+              {t('table.delete_product')}
+            </Button>
+          )}
           <Button
             variant="secondary"
             size="sm"
-            onClick={() => router.push(`/products/${product.id}/publish`)}
+            isLoading={isPublishing}
+            disabled={isPublishing}
+            onClick={handlePublish}
             leftIcon={<Icons.Rocket size={15} />}
           >
             {t('table.publish')}
@@ -210,6 +275,63 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({ product })
               </div>
             )}
 
+            {/* SPU Product Attributes */}
+            {product.product_attributes && (
+              <div className="space-y-1.5 pt-2 border-t border-slate-100 dark:border-slate-800">
+                <span className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                  <Icons.Sliders size={13} className="text-indigo-500" />
+                  Thuộc tính sản phẩm (SPU Attributes)
+                </span>
+                <div className="flex flex-wrap gap-2">
+                  {Array.isArray(product.product_attributes.items) &&
+                  product.product_attributes.items.length > 0 ? (
+                    product.product_attributes.items.map((item) => (
+                      <div
+                        key={item.attribute_id}
+                        className="px-2.5 py-1.5 rounded-lg bg-indigo-50/70 dark:bg-indigo-950/40 border border-indigo-200/70 dark:border-indigo-800/60 text-xs"
+                      >
+                        <span className="font-semibold text-indigo-700 dark:text-indigo-300">
+                          {item.name}:{' '}
+                        </span>
+                        <span className="text-slate-700 dark:text-slate-300">
+                          {item.attribute_value
+                            .map((v) => v.name || `#${v.value_id}`)
+                            .join(', ')}
+                        </span>
+                      </div>
+                    ))
+                  ) : Array.isArray(product.product_attributes.attribute_value) ? (
+                    <div className="px-2.5 py-1.5 rounded-lg bg-indigo-50/70 dark:bg-indigo-950/40 border border-indigo-200/70 dark:border-indigo-800/60 text-xs">
+                      <span className="font-semibold text-indigo-700 dark:text-indigo-300">
+                        {product.product_attributes.name || `ID #${product.product_attributes.attribute_id}`}:{' '}
+                      </span>
+                      <span className="text-slate-700 dark:text-slate-300">
+                        {product.product_attributes.attribute_value
+                          .map((v) => v.name || `#${v.value_id}`)
+                          .join(', ')}
+                      </span>
+                    </div>
+                  ) : typeof product.product_attributes === 'object' ? (
+                    Object.entries(product.product_attributes)
+                      .filter(([k]) => !['items', 'attribute_id', 'attribute_value'].includes(k))
+                      .map(([k, v]) => (
+                        <div
+                          key={k}
+                          className="px-2.5 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs"
+                        >
+                          <span className="font-semibold text-slate-700 dark:text-slate-300">
+                            {k}:{' '}
+                          </span>
+                          <span className="text-slate-600 dark:text-slate-400">
+                            {typeof v === 'object' ? JSON.stringify(v) : String(v)}
+                          </span>
+                        </div>
+                      ))
+                  ) : null}
+                </div>
+              </div>
+            )}
+
             {/* Description */}
             {product.description && (
               <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
@@ -226,12 +348,14 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({ product })
         </div>
       </div>
 
-      <DeleteProductModal
-        isOpen={showDeleteModal}
-        productsToDelete={[product]}
-        onClose={() => setShowDeleteModal(false)}
-        onConfirm={handleConfirmDelete}
-      />
+      {!isPublished && (
+        <DeleteProductModal
+          isOpen={showDeleteModal}
+          productsToDelete={[product]}
+          onClose={() => setShowDeleteModal(false)}
+          onConfirm={handleConfirmDelete}
+        />
+      )}
     </div>
   );
 };

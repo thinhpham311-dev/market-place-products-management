@@ -8,6 +8,7 @@ import { ProductStatus } from '@/types/product';
 
 interface BulkActionToolbarProps {
   selectedCount: number;
+  canDeleteSelected?: boolean;
   onClearSelection: () => void;
   onUpdateStatus: (status: ProductStatus) => void;
   onBulkPublish: () => void;
@@ -17,6 +18,7 @@ interface BulkActionToolbarProps {
 
 export const BulkActionToolbar: React.FC<BulkActionToolbarProps> = ({
   selectedCount,
+  canDeleteSelected = true,
   onClearSelection,
   onUpdateStatus,
   onBulkPublish,
@@ -69,15 +71,17 @@ export const BulkActionToolbar: React.FC<BulkActionToolbarProps> = ({
           {t('bulk.export_excel')}
         </Button>
 
-        <Button
-          size="sm"
-          variant="danger"
-          className="text-xs h-8"
-          onClick={onDeleteSelected}
-          leftIcon={<Icons.Trash2 size={14} />}
-        >
-          {t('bulk.delete')}
-        </Button>
+        {canDeleteSelected && (
+          <Button
+            size="sm"
+            variant="danger"
+            className="text-xs h-8"
+            onClick={onDeleteSelected}
+            leftIcon={<Icons.Trash2 size={14} />}
+          >
+            {t('bulk.delete')}
+          </Button>
+        )}
       </div>
 
       <button

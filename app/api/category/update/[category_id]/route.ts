@@ -83,6 +83,90 @@ export async function GET(
   });
 }
 
+function extractCategoryDoc(meta: unknown): Record<string, unknown> | null {
+  if (!meta || typeof meta !== "object" || Array.isArray(meta)) return null;
+  const obj = meta as Record<string, unknown>;
+  if (
+    obj.category &&
+    typeof obj.category === "object" &&
+    !Array.isArray(obj.category)
+  ) {
+    return obj.category as Record<string, unknown>;
+  }
+  if (
+    obj._id !== undefined ||
+    obj.category_id !== undefined ||
+    obj.category_name !== undefined ||
+    obj.category_active !== undefined
+  ) {
+    return obj;
+  }
+  return null;
+}
+
+function didCategoryUpdateSucceed(
+  data: unknown,
+  expectedActive?: boolean,
+): "verified" | "partial" | false {
+  if (!data || typeof data !== "object") return false;
+  const obj = data as Record<string, unknown>;
+
+  if (obj.status === "error" || obj.status === "fail") return false;
+  if (typeof obj.code === "number" && obj.code >= 400) return false;
+  if (typeof obj.statusCode === "number" && obj.statusCode >= 400) return false;
+
+  if ("metadata" in obj || "data" in obj || "result" in obj) {
+    const meta = obj.metadata ?? obj.data ?? obj.result;
+    if (meta === null || meta === false || meta === 0) {
+      return false;
+    }
+
+    if (typeof meta === "object" && meta !== null && !Array.isArray(meta)) {
+      const metaObj = meta as Record<string, unknown>;
+      const modifiedCount =
+        typeof metaObj.modifiedCount === "number"
+          ? metaObj.modifiedCount
+          : typeof metaObj.nModified === "number"
+            ? metaObj.nModified
+            : undefined;
+      const matchedCount =
+        typeof metaObj.matchedCount === "number"
+          ? metaObj.matchedCount
+          : typeof metaObj.n === "number"
+            ? metaObj.n
+            : undefined;
+
+      if (modifiedCount !== undefined || matchedCount !== undefined) {
+        if ((modifiedCount ?? 0) > 0) return "verified";
+        if ((matchedCount ?? 0) === 0 && (modifiedCount ?? 0) === 0) {
+          return false;
+        }
+        return "partial";
+      }
+
+      const doc = extractCategoryDoc(metaObj);
+      if (doc && expectedActive !== undefined) {
+        const rawActive =
+          doc.category_active ??
+          doc.is_active ??
+          doc.isActive ??
+          doc.active;
+        if (rawActive !== undefined) {
+          const actualActive =
+            typeof rawActive === "boolean"
+              ? rawActive
+              : typeof rawActive === "string"
+                ? rawActive.toLowerCase() !== "false" && rawActive !== "0"
+                : Boolean(rawActive);
+          return actualActive === expectedActive ? "verified" : false;
+        }
+      }
+    }
+  }
+
+  return "partial";
+}
+
 async function handleUpdateCategory(
   req: Request,
   context: RouteParamsContext,
@@ -105,18 +189,46 @@ async function handleUpdateCategory(
 
     const headers = buildUpstreamHeaders(req);
 
-    // Strip internal helper keys if present so upstream receives clean update fields
+    // Strip internal helper keys so upstream receives clean update fields
     const {
       fallback_id: fallbackIdFromBody,
+      _id: bodyMongoId,
+      id: bodyId,
+      category_id: bodyCategoryId,
       ...restBody
-    } = body as Record<string, unknown> & { fallback_id?: string };
+    } = body as Record<string, unknown> & {
+      fallback_id?: string;
+      _id?: string;
+      id?: string | number;
+      category_id?: string | number;
+    };
 
-    const upstreamPayload: Record<string, unknown> = {
+    const expectedActive =
+      restBody.category_active !== undefined
+        ? Boolean(restBody.category_active)
+        : undefined;
+
+    const rawParent =
+      restBody.parent_id ??
+      (restBody as Record<string, unknown>).category_parentId ??
+      (restBody as Record<string, unknown>).parentId;
+
+    const baseCategoryFields: Record<string, unknown> = {
       ...restBody,
     };
 
-    if (restBody.category_active !== undefined) {
-      upstreamPayload.category_active = Boolean(restBody.category_active);
+    delete (baseCategoryFields as Record<string, unknown>).category_parentId;
+    delete (baseCategoryFields as Record<string, unknown>).parentId;
+    delete (baseCategoryFields as Record<string, unknown>).category_parent_id;
+    delete (baseCategoryFields as Record<string, unknown>).parent;
+    delete (baseCategoryFields as Record<string, unknown>).parent_category_id;
+
+    if (rawParent !== undefined) {
+      baseCategoryFields.parent_id = rawParent;
+    }
+
+    if (expectedActive !== undefined) {
+      baseCategoryFields.category_active = expectedActive;
     }
 
     const candidateIds = Array.from(
@@ -124,14 +236,11 @@ async function handleUpdateCategory(
         [
           category_id,
           fallbackIdFromBody,
-          typeof restBody.category_id === "string" ||
-          typeof restBody.category_id === "number"
-            ? String(restBody.category_id)
+          bodyCategoryId !== undefined && bodyCategoryId !== null
+            ? String(bodyCategoryId)
             : undefined,
-          typeof restBody.id === "string" || typeof restBody.id === "number"
-            ? String(restBody.id)
-            : undefined,
-          typeof restBody._id === "string" ? restBody._id : undefined,
+          bodyId !== undefined && bodyId !== null ? String(bodyId) : undefined,
+          typeof bodyMongoId === "string" ? bodyMongoId : undefined,
         ]
           .filter((val): val is string => Boolean(val && String(val).trim()))
           .map((val) => String(val).trim()),
@@ -155,50 +264,161 @@ async function handleUpdateCategory(
 
     let firstStructuredError: unknown = null;
     let lastError: unknown = null;
+    let bestPartialResponse: unknown = null;
 
     for (const targetId of candidateIds) {
-      const upstreamUrl = `${API_NEXT}/v1/api/category/update/${encodeURIComponent(
-        targetId,
-      )}`;
+      const parsedTargetId: string | number = /^\d+$/.test(targetId)
+        ? Number(targetId)
+        : targetId;
 
+      const payloadWithIds: Record<string, unknown> = {
+        ...baseCategoryFields,
+        category_id: bodyCategoryId ?? parsedTargetId,
+        id: targetId,
+        ...(expectedActive !== undefined
+          ? {
+              category_active: expectedActive,
+              isActive: expectedActive,
+              is_active: expectedActive,
+              active: expectedActive,
+            }
+          : {}),
+      };
+
+      const payloadVariants: Array<Record<string, unknown>> = [
+        baseCategoryFields,
+        payloadWithIds,
+        ...(expectedActive !== undefined
+          ? [{ category_active: expectedActive }]
+          : []),
+      ];
+
+      const targetUrls = [
+        `${API_NEXT}/v1/api/category/update/${encodeURIComponent(targetId)}`,
+        `${API_NEXT}/v1/api/category/active/${encodeURIComponent(targetId)}`,
+        `${API_NEXT}/v1/api/category/publish/${encodeURIComponent(targetId)}`,
+        `${API_NEXT}/v1/api/category/status/${encodeURIComponent(targetId)}`,
+        `${API_NEXT}/v1/api/category/${encodeURIComponent(targetId)}`,
+      ];
+
+      for (const upstreamUrl of targetUrls) {
+        const isPrimaryUpdateUrl = upstreamUrl.includes("/category/update/");
+        const variantsToTry = isPrimaryUpdateUrl
+          ? payloadVariants
+          : [payloadWithIds];
+
+        for (const method of methodOrder) {
+          let shouldTryNextMethod = false;
+
+          for (const candidatePayload of variantsToTry) {
+            try {
+              const { data: dataResponse } = await axios({
+                url: upstreamUrl,
+                method,
+                data: candidatePayload,
+                headers,
+              });
+
+              const check = didCategoryUpdateSucceed(
+                dataResponse,
+                expectedActive,
+              );
+              if (check === "verified") {
+                return NextResponse.json(dataResponse);
+              }
+              if (check === "partial" && !bestPartialResponse) {
+                bestPartialResponse = dataResponse;
+              }
+            } catch (err: unknown) {
+              lastError = err;
+              const resp = (
+                err as {
+                  response?: { status?: number; data?: unknown };
+                }
+              )?.response;
+              const status = resp?.status;
+
+              if (
+                resp?.data &&
+                typeof resp.data === "object" &&
+                !firstStructuredError
+              ) {
+                firstStructuredError = err;
+              }
+
+              // If route/method is not found or not allowed (404/405), move to next method/url
+              if (status === 404 || status === 405) {
+                shouldTryNextMethod = true;
+                break;
+              }
+            }
+          }
+
+          if (shouldTryNextMethod) {
+            continue;
+          }
+        }
+      }
+    }
+
+    // Also try body-based category update endpoints without :category_id in URL path
+    const primaryTargetId = candidateIds[0];
+    const parsedPrimaryId: string | number = /^\d+$/.test(primaryTargetId)
+      ? Number(primaryTargetId)
+      : primaryTargetId;
+    const bodyEndpointPayload: Record<string, unknown> = {
+      ...baseCategoryFields,
+      id: primaryTargetId,
+      _id: typeof bodyMongoId === "string" ? bodyMongoId : primaryTargetId,
+      category_id: bodyCategoryId ?? parsedPrimaryId,
+      ...(expectedActive !== undefined
+        ? {
+            category_active: expectedActive,
+            isActive: expectedActive,
+            is_active: expectedActive,
+            active: expectedActive,
+          }
+        : {}),
+    };
+
+    const bodyBasedUrls = [
+      `${API_NEXT}/v1/api/category/update`,
+      `${API_NEXT}/v1/api/category/status`,
+      `${API_NEXT}/v1/api/category/active`,
+    ];
+
+    for (const upstreamUrl of bodyBasedUrls) {
       for (const method of methodOrder) {
         try {
           const { data: dataResponse } = await axios({
             url: upstreamUrl,
             method,
-            data: upstreamPayload,
+            data: bodyEndpointPayload,
             headers,
           });
-          return NextResponse.json(dataResponse);
+
+          const check = didCategoryUpdateSucceed(dataResponse, expectedActive);
+          if (check === "verified") {
+            return NextResponse.json(dataResponse);
+          }
+          if (check === "partial" && !bestPartialResponse) {
+            bestPartialResponse = dataResponse;
+          }
         } catch (err: unknown) {
           lastError = err;
-          const resp = (
-            err as {
-              response?: { status?: number; data?: unknown };
-            }
-          )?.response;
-          const status = resp?.status;
-
-          if (
-            resp?.data &&
-            typeof resp.data === "object" &&
-            !firstStructuredError
-          ) {
-            firstStructuredError = err;
-          }
-
-          // If method is not allowed or route method mismatch (404/405), try next method
-          if (status === 404 || status === 405) {
-            continue;
-          }
-
-          // For other status codes (e.g. 400, 401, 403, 500), break method loop
-          break;
         }
       }
     }
 
-    throw firstStructuredError || lastError;
+    if (bestPartialResponse) {
+      return NextResponse.json(bestPartialResponse);
+    }
+
+    throw (
+      firstStructuredError ||
+      lastError ||
+      new Error("Không thể cập nhật trạng thái category_active trong database")
+    );
   } catch (error: unknown) {
     const normalized = handleAxiosError(error);
     return NextResponse.json(

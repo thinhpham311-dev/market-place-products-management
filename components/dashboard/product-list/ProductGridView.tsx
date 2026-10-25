@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { Product } from '@/types/product';
+import { isProductPublished } from '@/services/ProductService';
 import { useTranslation } from '@/lib/i18n/useTranslation';
 import { Icons } from '@/components/ui/Icons';
 import { StatusBadge } from '@/components/ui/Badge';
@@ -10,6 +11,7 @@ import { Button } from '@/components/ui/Button';
 interface ProductGridViewProps {
   products: Product[];
   selectedIds: string[];
+  publishingIds?: Record<string, boolean>;
   onToggleSelect: (id: string) => void;
   onSelectProduct: (product: Product) => void;
   onEditProduct: (product: Product) => void;
@@ -20,6 +22,7 @@ interface ProductGridViewProps {
 export const ProductGridView: React.FC<ProductGridViewProps> = ({
   products,
   selectedIds,
+  publishingIds = {},
   onToggleSelect,
   onSelectProduct,
   onEditProduct,
@@ -35,6 +38,7 @@ export const ProductGridView: React.FC<ProductGridViewProps> = ({
         const isLowStock = p.stock <= p.lowStockThreshold && p.stock > 0;
         const isOutOfStock = p.stock === 0;
         const isDraft = p.status === 'draft';
+        const isPublished = isProductPublished(p);
         const translatedName = tp(p.name);
 
         return (
@@ -81,6 +85,8 @@ export const ProductGridView: React.FC<ProductGridViewProps> = ({
                   <Button
                     size="sm"
                     variant="primary"
+                    isLoading={Boolean(publishingIds[p.id])}
+                    disabled={Boolean(publishingIds[p.id])}
                     className="bg-emerald-600 hover:bg-emerald-700 text-xs w-full shadow-lg"
                     onClick={() => onOpenPublishModal(p)}
                     leftIcon={<Icons.Rocket size={14} />}
@@ -178,13 +184,15 @@ export const ProductGridView: React.FC<ProductGridViewProps> = ({
                   >
                     <Icons.Edit2 size={15} />
                   </button>
-                  <button
-                    onClick={() => onDeleteProduct(p.id)}
-                    className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/40"
-                    title={t('table.delete_product')}
-                  >
-                    <Icons.Trash2 size={15} />
-                  </button>
+                  {!isPublished && (
+                    <button
+                      onClick={() => onDeleteProduct(p.id)}
+                      className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/40"
+                      title={t('table.delete_product')}
+                    >
+                      <Icons.Trash2 size={15} />
+                    </button>
+                  )}
                 </div>
               </div>
             </div>

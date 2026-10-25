@@ -8,6 +8,7 @@ import { setActiveTab, showToast } from '@/store/slices/uiSlice';
 import {
   apiCreateCategory,
   apiGetCategoryAllList,
+  apiUpdateCategoryStatus,
   buildCreateCategoryPayload,
   extractCategoryArray,
   extractCreatedCategory,
@@ -50,16 +51,39 @@ export default function NewCategoryPage() {
       const rawCreated = extractCreatedCategory(res.data);
       const mappedFromApi = rawCreated ? mapRawToCategory(rawCreated, 0) : null;
 
+      if (
+        data.category_active === true &&
+        mappedFromApi?.id &&
+        mappedFromApi.category_active !== true
+      ) {
+        try {
+          await apiUpdateCategoryStatus({
+            id: mappedFromApi.id,
+            categoryId: mappedFromApi.categoryId,
+            category_active: true,
+            category_name: mappedFromApi.name || data.name,
+            category_slug: mappedFromApi.slug || data.slug,
+            category_description: mappedFromApi.description ?? data.description,
+            category_thumb: mappedFromApi.image || data.image,
+            parent_id: mappedFromApi.parentId ?? data.parentId ?? null,
+          });
+          mappedFromApi.category_active = true;
+        } catch {
+          // Best-effort follow-up status update
+        }
+      }
+
       dispatch(
         addCategory({
           id: mappedFromApi?.id,
+          categoryId: mappedFromApi?.categoryId,
           name: mappedFromApi?.name || data.name,
           slug: mappedFromApi?.slug || data.slug,
           description: mappedFromApi?.description ?? data.description,
           image: mappedFromApi?.image || data.image,
-          parentId: mappedFromApi?.parentId ?? data.parentId ?? null,
+          parentId: mappedFromApi?.parentId || data.parentId || null,
           category_active:
-            data.category_active ?? mappedFromApi?.category_active ?? false,
+            mappedFromApi?.category_active ?? data.category_active ?? true,
           productCount: mappedFromApi?.productCount ?? 0,
         })
       );

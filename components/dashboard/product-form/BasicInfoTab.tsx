@@ -7,6 +7,7 @@ import { flattenCategoryTreeWithDepth } from '@/services/CategoryService';
 import { Button } from '@/components/ui/Button';
 import { Icons } from '@/components/ui/Icons';
 import { ConfirmDeleteModal } from '@/components/ui/ConfirmDeleteModal';
+import { ProductAttributeSection } from './ProductAttributeSection';
 
 interface BasicInfoTabProps {
   name: string;
@@ -57,7 +58,6 @@ export const BasicInfoTab: React.FC<BasicInfoTabProps> = ({
 }) => {
   const [tagInput, setTagInput] = useState('');
   const [pendingDeleteTag, setPendingDeleteTag] = useState<string | null>(null);
-  const [attrValueIdInput, setAttrValueIdInput] = useState('');
   const [categoryItemInput, setCategoryItemInput] = useState('');
 
   const activeCategories = useMemo(
@@ -69,27 +69,6 @@ export const BasicInfoTab: React.FC<BasicInfoTabProps> = ({
     () => flattenCategoryTreeWithDepth(activeCategories),
     [activeCategories]
   );
-
-  const handleAddAttrValueId = () => {
-    const parsed = Number(attrValueIdInput);
-    if (!Number.isNaN(parsed) && attrValueIdInput.trim() !== '') {
-      const exists = productAttributes.attribute_value.some((v) => v.value_id === parsed);
-      if (!exists) {
-        setProductAttributes({
-          ...productAttributes,
-          attribute_value: [...productAttributes.attribute_value, { value_id: parsed }],
-        });
-      }
-      setAttrValueIdInput('');
-    }
-  };
-
-  const handleRemoveAttrValueId = (valId: number) => {
-    setProductAttributes({
-      ...productAttributes,
-      attribute_value: productAttributes.attribute_value.filter((v) => v.value_id !== valId),
-    });
-  };
 
   const handleAddCategoryItem = () => {
     const trimmed = categoryItemInput.trim();
@@ -209,203 +188,146 @@ export const BasicInfoTab: React.FC<BasicInfoTabProps> = ({
         </div>
       </div>
 
-      {/* SPU Attributes & Category Array */}
+      {/* SPU Attributes Management Section */}
+      <ProductAttributeSection
+        productAttributes={productAttributes}
+        setProductAttributes={setProductAttributes}
+      />
+
+      {/* SPU Category Array */}
       <div className="p-4 rounded-2xl bg-slate-50/80 dark:bg-slate-800/50 border border-slate-200/80 dark:border-slate-700/80 space-y-4">
         <div className="flex items-center justify-between">
           <span className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
             <Icons.Layers size={14} className="text-indigo-500" />
-            Thuộc tính SPU (<code className="font-mono text-indigo-600 dark:text-indigo-400">product_attributes</code> &amp; <code className="font-mono text-indigo-600 dark:text-indigo-400">product_category</code>)
+            Mảng Danh mục SPU (<code className="font-mono text-indigo-600 dark:text-indigo-400">product_category: string[]</code>)
+          </span>
+          <span className="text-xs font-mono text-slate-500 dark:text-slate-400">
+            Đã chọn: {productCategoryList.length} danh mục
           </span>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {/* attribute_id & attribute_value */}
-          <div className="space-y-2.5">
-            <div>
-              <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-300 mb-1">
-                Attribute ID (<code className="font-mono">attribute_id</code>)
-              </label>
+        <div className="space-y-2.5">
+          <div>
+            <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-300 mb-1">
+              Nhập mã danh mục tùy chọn
+            </label>
+            <div className="flex items-center gap-2 mb-2">
               <input
-                type="number"
-                value={productAttributes.attribute_id}
-                onChange={(e) =>
-                  setProductAttributes({
-                    ...productAttributes,
-                    attribute_id: Number(e.target.value) || 0,
-                  })
-                }
-                placeholder="200000"
-                className="w-full text-xs font-mono bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-slate-900 dark:text-white outline-none focus:border-indigo-500"
+                type="text"
+                value={categoryItemInput}
+                onChange={(e) => setCategoryItemInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleAddCategoryItem();
+                  }
+                }}
+                placeholder="Để trống = [] hoặc nhập Category ID..."
+                className="flex-1 text-xs font-mono bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-1.5 text-slate-900 dark:text-white outline-none"
               />
+              <Button type="button" size="sm" variant="secondary" onClick={handleAddCategoryItem}>
+                Thêm
+              </Button>
             </div>
-
-            <div>
-              <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-300 mb-1">
-                Attribute Values (<code className="font-mono">attribute_value: [{'{ value_id }'}]</code>)
-              </label>
-              <div className="flex items-center gap-2 mb-2">
-                <input
-                  type="number"
-                  value={attrValueIdInput}
-                  onChange={(e) => setAttrValueIdInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      handleAddAttrValueId();
-                    }
-                  }}
-                  placeholder="Nhập value_id (VD: 1, 2)..."
-                  className="flex-1 text-xs font-mono bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-1.5 text-slate-900 dark:text-white outline-none"
-                />
-                <Button type="button" size="sm" variant="secondary" onClick={handleAddAttrValueId}>
-                  + value_id
-                </Button>
-              </div>
-              <div className="flex flex-wrap gap-1.5">
-                {productAttributes.attribute_value.map((item) => (
+            <div className="flex flex-wrap items-center gap-1.5">
+              {productCategoryList.length === 0 ? (
+                <span className="text-[11px] font-mono text-slate-400">
+                  product_category: [] (Mảng rỗng mặc định)
+                </span>
+              ) : (
+                productCategoryList.map((catItem) => (
                   <span
-                    key={item.value_id}
-                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-mono bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 border border-indigo-200/70 dark:border-indigo-800/60"
+                    key={catItem}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-mono bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700"
                   >
-                    {`{ value_id: ${item.value_id} }`}
+                    &quot;{catItem}&quot;
                     <button
                       type="button"
-                      onClick={() => handleRemoveAttrValueId(item.value_id)}
+                      onClick={() => handleRemoveCategoryItem(catItem)}
                       className="hover:text-rose-500 cursor-pointer"
-                      title="Xóa value_id"
                     >
                       <Icons.X size={12} />
                     </button>
                   </span>
-                ))}
-              </div>
+                ))
+              )}
             </div>
-          </div>
-
-          {/* product_category array */}
-          <div className="space-y-2.5">
-            <div>
-              <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-300 mb-1">
-                Mảng Danh mục SPU (<code className="font-mono">product_category: string[]</code>)
-              </label>
-              <div className="flex items-center gap-2 mb-2">
-                <input
-                  type="text"
-                  value={categoryItemInput}
-                  onChange={(e) => setCategoryItemInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      handleAddCategoryItem();
-                    }
-                  }}
-                  placeholder="Để trống = [] hoặc nhập Category ID..."
-                  className="flex-1 text-xs font-mono bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-1.5 text-slate-900 dark:text-white outline-none"
-                />
-                <Button type="button" size="sm" variant="secondary" onClick={handleAddCategoryItem}>
-                  Thêm
-                </Button>
+            <div className="pt-2">
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="block text-[11px] font-semibold text-slate-600 dark:text-slate-300">
+                  Danh sách Categories Active ({nestedCategories.length}):
+                </span>
+                <Link
+                  href="/categories"
+                  className="text-[11px] font-semibold text-indigo-600 dark:text-indigo-400 hover:underline"
+                >
+                  Quản lý Categories →
+                </Link>
               </div>
-              <div className="flex flex-wrap items-center gap-1.5">
-                {productCategoryList.length === 0 ? (
-                  <span className="text-[11px] font-mono text-slate-400">
-                    product_category: [] (Mảng rỗng mặc định)
-                  </span>
-                ) : (
-                  productCategoryList.map((catItem) => (
-                    <span
-                      key={catItem}
-                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-mono bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700"
-                    >
-                      &quot;{catItem}&quot;
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveCategoryItem(catItem)}
-                        className="hover:text-rose-500 cursor-pointer"
-                      >
-                        <Icons.X size={12} />
-                      </button>
-                    </span>
-                  ))
-                )}
-              </div>
-              <div className="pt-2">
-                <div className="flex items-center justify-between mb-1.5">
-                  <span className="block text-[11px] font-semibold text-slate-600 dark:text-slate-300">
-                    Danh sách Categories Active ({nestedCategories.length}):
-                  </span>
+              {nestedCategories.length === 0 ? (
+                <div className="p-3 rounded-xl border border-amber-200 dark:border-amber-800/60 bg-amber-50/60 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300 text-xs flex items-center justify-between gap-2">
+                  <span>Chưa có danh mục nào ở trạng thái Active.</span>
                   <Link
                     href="/categories"
-                    className="text-[11px] font-semibold text-indigo-600 dark:text-indigo-400 hover:underline"
+                    className="px-2.5 py-1 rounded-lg bg-amber-500 text-white font-semibold text-[11px] shrink-0 hover:bg-amber-600 transition-colors"
                   >
-                    Quản lý Categories →
+                    Bật Active ngay
                   </Link>
                 </div>
-                {nestedCategories.length === 0 ? (
-                  <div className="p-3 rounded-xl border border-amber-200 dark:border-amber-800/60 bg-amber-50/60 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300 text-xs flex items-center justify-between gap-2">
-                    <span>Chưa có danh mục nào ở trạng thái Active.</span>
-                    <Link
-                      href="/categories"
-                      className="px-2.5 py-1 rounded-lg bg-amber-500 text-white font-semibold text-[11px] shrink-0 hover:bg-amber-600 transition-colors"
-                    >
-                      Bật Active ngay
-                    </Link>
-                  </div>
-                ) : (
-                  <div className="max-h-52 overflow-y-auto rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-2 space-y-1">
-                    {nestedCategories.map(({ category: cat, depth }) => {
-                      const isAdded = productCategoryList.includes(cat.id);
-                      return (
-                        <div
-                          key={cat.id}
-                          style={{ paddingLeft: `${depth * 16}px` }}
-                          className="flex items-center"
+              ) : (
+                <div className="max-h-52 overflow-y-auto rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-2 space-y-1">
+                  {nestedCategories.map(({ category: cat, depth }) => {
+                    const isAdded = productCategoryList.includes(cat.id);
+                    return (
+                      <div
+                        key={cat.id}
+                        style={{ paddingLeft: `${depth * 16}px` }}
+                        className="flex items-center"
+                      >
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (isAdded) {
+                              handleRemoveCategoryItem(cat.id);
+                            } else {
+                              setProductCategoryList([...productCategoryList, cat.id]);
+                            }
+                          }}
+                          className={`w-full text-left px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-colors cursor-pointer flex items-center justify-between gap-2 ${
+                            isAdded
+                              ? 'bg-indigo-600 text-white border-indigo-600'
+                              : 'bg-slate-50/70 dark:bg-slate-800/60 text-slate-700 dark:text-slate-300 border-slate-200/70 dark:border-slate-700/70 hover:border-indigo-400'
+                          }`}
                         >
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (isAdded) {
-                                handleRemoveCategoryItem(cat.id);
-                              } else {
-                                setProductCategoryList([...productCategoryList, cat.id]);
-                              }
-                            }}
-                            className={`w-full text-left px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-colors cursor-pointer flex items-center justify-between gap-2 ${
-                              isAdded
-                                ? 'bg-indigo-600 text-white border-indigo-600'
-                                : 'bg-slate-50/70 dark:bg-slate-800/60 text-slate-700 dark:text-slate-300 border-slate-200/70 dark:border-slate-700/70 hover:border-indigo-400'
-                            }`}
-                          >
-                            <div className="flex items-center gap-2 min-w-0">
-                              <span className="truncate font-semibold">
-                                {depth > 0 ? '↳ ' : ''}
-                                {cat.name}
-                              </span>
-                              <span
-                                className={`inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-semibold rounded-full ${
-                                  isAdded
-                                    ? 'bg-emerald-500/30 text-white'
-                                    : 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60'
-                                }`}
-                              >
-                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                                Active
-                              </span>
-                            </div>
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="truncate font-semibold">
+                              {depth > 0 ? '↳ ' : ''}
+                              {cat.name}
+                            </span>
                             <span
-                              className={`font-mono text-[10px] shrink-0 ${
-                                isAdded ? 'text-indigo-100 font-bold' : 'text-slate-400'
+                              className={`inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-semibold rounded-full ${
+                                isAdded
+                                  ? 'bg-emerald-500/30 text-white'
+                                  : 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60'
                               }`}
                             >
-                              {isAdded ? '✓ Đã chọn' : `+ ${cat.id}`}
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                              Active
                             </span>
-                          </button>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
+                          </div>
+                          <span
+                            className={`font-mono text-[10px] shrink-0 ${
+                              isAdded ? 'text-indigo-100 font-bold' : 'text-slate-400'
+                            }`}
+                          >
+                            {isAdded ? '✓ Đã chọn' : `+ ${cat.id}`}
+                          </span>
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
         </div>

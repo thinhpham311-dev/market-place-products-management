@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ProductCategory } from '@/types/product';
 import { useTranslation } from '@/lib/i18n/useTranslation';
 import { Icons } from '@/components/ui/Icons';
@@ -42,6 +42,10 @@ export const CategoryCard: React.FC<CategoryCardProps> = ({
 }) => {
   const { t, tc, tcd, formatCurrency } = useTranslation();
   const [expanded, setExpanded] = useState(defaultExpanded);
+
+  useEffect(() => {
+    setExpanded(defaultExpanded);
+  }, [defaultExpanded]);
 
   const children = category.children || [];
   const hasChildren = children.length > 0;

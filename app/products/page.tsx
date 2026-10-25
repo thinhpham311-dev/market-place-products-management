@@ -3,12 +3,13 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
-import { showToast } from '@/store/slices/uiSlice';
+import { showErrorToast, showToast } from '@/store/slices/uiSlice';
 import {
   deleteProduct,
   duplicateProduct,
   toggleStatus,
   quickUpdateStock,
+  publishProduct,
   bulkPublish,
   bulkUpdateStatus,
   bulkDelete,
@@ -18,9 +19,12 @@ import {
 import {
   apiGetDraftedSpuList,
   apiGetPublishedSpuList,
+  apiPublishSpu,
   extractSpuArray,
+  isProductPublished,
   mapSpuToProduct,
 } from '@/services/ProductService';
+import { getApiErrorMessage } from '@/lib/http/handleAxiosError';
 import { useHydrated } from '@/store/StoreProvider';
 import { Product, ProductStatus } from '@/types/product';
 import { ProductList } from '@/components/dashboard/ProductList';
@@ -44,6 +48,7 @@ export default function ProductsPage() {
   const userId = useAppSelector((s) => s.auth.user?.id);
 
   const [pendingDeleteIds, setPendingDeleteIds] = useState<string[]>([]);
+  const [publishingIds, setPublishingIds] = useState<Record<string, boolean>>({});
   const activeTab = searchParams.get('tab');
 
   const fetchSpuProducts = useCallback(async () => {
@@ -84,15 +89,46 @@ export default function ProductsPage() {
   const handleOpenCreate = () => router.push('/products/new');
   const handleOpenEdit = (product: Product) => router.push(`/products/${product.id}/edit`);
   const handleOpenDetail = (product: Product) => router.push(`/products/${product.id}`);
-  const handleOpenPublish = (product: Product) => router.push(`/products/${product.id}/publish`);
+
+  const handleOpenPublish = async (product: Product) => {
+    if (publishingIds[product.id]) return;
+
+    setPublishingIds((prev) => ({ ...prev, [product.id]: true }));
+    try {
+      await apiPublishSpu(product);
+      dispatch(
+        publishProduct({
+          productId: product.id,
+          channels: product.channels?.length ? product.channels : ['website'],
+          publishMode: 'instant',
+        })
+      );
+      dispatch(showToast(`Đã xuất bản sản phẩm "${product.name}" thành công!`));
+      void fetchSpuProducts();
+    } catch (error: unknown) {
+      dispatch(showErrorToast(getApiErrorMessage(error)));
+    } finally {
+      setPublishingIds((prev) => {
+        const next = { ...prev };
+        delete next[product.id];
+        return next;
+      });
+    }
+  };
 
   const handleDeleteProduct = (id: string) => {
+    const target = products.find((p) => p.id === id);
+    if (target && isProductPublished(target)) return;
     setPendingDeleteIds([id]);
   };
 
   const handleBulkDelete = (ids: string[]) => {
-    if (ids.length > 0) {
-      setPendingDeleteIds(ids);
+    const deletableIds = ids.filter((id) => {
+      const target = products.find((p) => p.id === id);
+      return target && !isProductPublished(target);
+    });
+    if (deletableIds.length > 0) {
+      setPendingDeleteIds(deletableIds);
     }
   };
 
@@ -114,7 +150,18 @@ export default function ProductsPage() {
     dispatch(showToast(`Đã nhân bản "${product.name}" thành bản nháp thành công!`));
   };
 
-  const handleToggleStatus = (id: string) => dispatch(toggleStatus(id));
+  const handleToggleStatus = async (id: string) => {
+    const target = products.find((p) => p.id === id);
+    if (!target || publishingIds[id]) return;
+
+    const isActivating = target.status !== 'active';
+    if (isActivating) {
+      await handleOpenPublish(target);
+      return;
+    }
+
+    dispatch(toggleStatus(id));
+  };
 
   const handleQuickUpdateStock = (id: string, newStock: number) => {
     const target = products.find((p) => p.id === id);
@@ -123,14 +170,30 @@ export default function ProductsPage() {
     dispatch(showToast(`Đã cập nhật tồn kho "${target.name}" thành ${newStock}.`));
   };
 
-  const handleBulkUpdateStatus = (ids: string[], status: ProductStatus) => {
+  const handleBulkUpdateStatus = async (ids: string[], status: ProductStatus) => {
+    if (status === 'active') {
+      await handleBulkPublish(ids);
+      return;
+    }
     dispatch(bulkUpdateStatus({ ids, status }));
     dispatch(showToast(`Đã cập nhật trạng thái cho ${ids.length} sản phẩm.`));
   };
 
-  const handleBulkPublish = (ids: string[]) => {
-    dispatch(bulkPublish(ids));
-    dispatch(showToast(`Đã xuất bản hàng loạt ${ids.length} sản phẩm thành công!`));
+  const handleBulkPublish = async (ids: string[]) => {
+    if (ids.length === 0) return;
+    try {
+      await Promise.all(
+        ids.map((id) => {
+          const target = products.find((p) => p.id === id);
+          return apiPublishSpu(target || id);
+        })
+      );
+      dispatch(bulkPublish(ids));
+      dispatch(showToast(`Đã xuất bản hàng loạt ${ids.length} sản phẩm thành công!`));
+      void fetchSpuProducts();
+    } catch (error: unknown) {
+      dispatch(showErrorToast(getApiErrorMessage(error)));
+    }
   };
 
   return (
@@ -159,6 +222,7 @@ export default function ProductsPage() {
         products={products}
         categories={categories}
         searchQuery={globalSearch}
+        publishingIds={publishingIds}
         onSelectProduct={handleOpenDetail}
         onEditProduct={handleOpenEdit}
         onDeleteProduct={handleDeleteProduct}

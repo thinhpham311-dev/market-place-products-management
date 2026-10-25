@@ -4,6 +4,7 @@ import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useHydrated } from '@/store/StoreProvider';
 import { Product, ProductCategory, ProductStatus, ProductFilterState } from '@/types/product';
+import { isProductPublished } from '@/services/ProductService';
 import { BulkActionToolbar } from './BulkActionToolbar';
 import { ProductFilterBar } from './product-list/ProductFilterBar';
 import { ProductTableView } from './product-list/ProductTableView';
@@ -23,6 +24,7 @@ interface ProductListProps {
   products: Product[];
   categories: ProductCategory[];
   searchQuery: string;
+  publishingIds?: Record<string, boolean>;
   onSelectProduct: (product: Product) => void;
   onEditProduct: (product: Product) => void;
   onDeleteProduct: (id: string) => void;
@@ -40,6 +42,7 @@ export const ProductList: React.FC<ProductListProps> = ({
   products,
   categories,
   searchQuery,
+  publishingIds = {},
   onSelectProduct,
   onEditProduct,
   onDeleteProduct,
@@ -177,6 +180,15 @@ export const ProductList: React.FC<ProductListProps> = ({
   const isAllSelected =
     paginatedProducts.length > 0 && paginatedProducts.every((p) => selectedIds.includes(p.id));
 
+  const canDeleteSelected = useMemo(() => {
+    if (selectedIds.length === 0) return false;
+    const selectedProducts = products.filter((p) => selectedIds.includes(p.id));
+    return (
+      selectedProducts.length > 0 &&
+      selectedProducts.every((p) => !isProductPublished(p))
+    );
+  }, [products, selectedIds]);
+
   // Status counters for tab filters
   const statusCounts = useMemo(() => {
     return {
@@ -223,6 +235,7 @@ export const ProductList: React.FC<ProductListProps> = ({
           products={paginatedProducts}
           selectedIds={selectedIds}
           isAllSelected={isAllSelected}
+          publishingIds={publishingIds}
           onSelectAll={handleSelectAll}
           onToggleSelect={handleToggleSelect}
           onSelectProduct={onSelectProduct}
@@ -237,6 +250,7 @@ export const ProductList: React.FC<ProductListProps> = ({
         <ProductGridView
           products={paginatedProducts}
           selectedIds={selectedIds}
+          publishingIds={publishingIds}
           onToggleSelect={handleToggleSelect}
           onSelectProduct={onSelectProduct}
           onEditProduct={onEditProduct}
@@ -256,6 +270,7 @@ export const ProductList: React.FC<ProductListProps> = ({
 
       <BulkActionToolbar
         selectedCount={selectedIds.length}
+        canDeleteSelected={canDeleteSelected}
         onClearSelection={() => setSelectedIds([])}
         onUpdateStatus={(status) => {
           onBulkUpdateStatus(selectedIds, status);

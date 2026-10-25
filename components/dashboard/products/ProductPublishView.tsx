@@ -4,8 +4,20 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Product } from '@/types/product';
 import { useAppDispatch } from '@/store/hooks';
-import { publishProduct } from '@/store/slices/productsSlice';
-import { setActiveTab, showToast } from '@/store/slices/uiSlice';
+import {
+  publishProduct,
+  setDraftedProducts,
+  setPublishedProducts,
+} from '@/store/slices/productsSlice';
+import { setActiveTab, showErrorToast, showToast } from '@/store/slices/uiSlice';
+import {
+  apiGetDraftedSpuList,
+  apiGetPublishedSpuList,
+  apiPublishSpu,
+  extractSpuArray,
+  mapSpuToProduct,
+} from '@/services/ProductService';
+import { getApiErrorMessage } from '@/lib/http/handleAxiosError';
 import { useTranslation } from '@/lib/i18n/useTranslation';
 import { Button } from '@/components/ui/Button';
 import { Icons } from '@/components/ui/Icons';
@@ -75,45 +87,79 @@ export const ProductPublishView: React.FC<ProductPublishViewProps> = ({ product 
     { label: 'Tồn kho khả dụng', valid: product.stock > 0 },
   ];
 
-  const handleExecutePublish = () => {
+  const handleExecutePublish = async () => {
+    if (isPublishing) return;
     setIsPublishing(true);
     setPublishStep(1);
 
-    setTimeout(() => {
+    try {
       setPublishStep(2);
-      setTimeout(() => {
-        setPublishStep(3);
-        setTimeout(() => {
-          setIsPublishing(false);
-          setPublishStep(0);
-          const fullSchedule = `${scheduleDate} ${scheduleTime}`;
-          dispatch(
-            publishProduct({
-              productId: product.id,
-              channels: selectedChannels,
-              publishMode,
-              scheduledTime: publishMode === 'scheduled' ? fullSchedule : undefined,
-            })
-          );
+      const fullSchedule = `${scheduleDate} ${scheduleTime}`;
+      await apiPublishSpu(product, {
+        channels: selectedChannels,
+        publishMode,
+        ...(publishMode === 'scheduled' ? { scheduledTime: fullSchedule } : {}),
+      });
 
-          if (publishMode === 'instant') {
-            dispatch(
-              showToast(
-                `Đã xuất bản thành công "${tp(product.name)}" lên ${selectedChannels
-                  .join(', ')
-                  .toUpperCase()}!`
-              )
-            );
-          } else {
-            dispatch(
-              showToast(`Đã đặt lịch hẹn xuất bản "${tp(product.name)}" vào ${fullSchedule}!`)
-            );
-          }
-          dispatch(setActiveTab('products'));
-          router.push('/products');
-        }, 600);
-      }, 700);
-    }, 600);
+      setPublishStep(3);
+      dispatch(
+        publishProduct({
+          productId: product.id,
+          channels: selectedChannels,
+          publishMode,
+          scheduledTime: publishMode === 'scheduled' ? fullSchedule : undefined,
+        })
+      );
+
+      // Refresh published & drafted SPU lists in background so store stays in sync with upstream
+      const [publishedRes, draftedRes] = await Promise.allSettled([
+        apiGetPublishedSpuList(),
+        apiGetDraftedSpuList(),
+      ]);
+
+      if (publishedRes.status === 'fulfilled') {
+        const rawPublished = extractSpuArray(publishedRes.value.data);
+        if (Array.isArray(rawPublished)) {
+          dispatch(
+            setPublishedProducts(
+              rawPublished.map((item, idx) => mapSpuToProduct(item, idx, 'active'))
+            )
+          );
+        }
+      }
+
+      if (draftedRes.status === 'fulfilled') {
+        const rawDrafted = extractSpuArray(draftedRes.value.data);
+        if (Array.isArray(rawDrafted)) {
+          dispatch(
+            setDraftedProducts(
+              rawDrafted.map((item, idx) => mapSpuToProduct(item, idx, 'draft'))
+            )
+          );
+        }
+      }
+
+      if (publishMode === 'instant') {
+        dispatch(
+          showToast(
+            `Đã xuất bản thành công "${tp(product.name)}" lên ${selectedChannels
+              .join(', ')
+              .toUpperCase()}!`
+          )
+        );
+      } else {
+        dispatch(
+          showToast(`Đã đặt lịch hẹn xuất bản "${tp(product.name)}" vào ${fullSchedule}!`)
+        );
+      }
+      dispatch(setActiveTab('products'));
+      router.push('/products');
+    } catch (error: unknown) {
+      dispatch(showErrorToast(getApiErrorMessage(error)));
+    } finally {
+      setIsPublishing(false);
+      setPublishStep(0);
+    }
   };
 
   return (

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ProductCategory } from '@/types/product';
 import { flattenCategoryTreeWithDepth } from '@/services/CategoryService';
@@ -14,6 +14,7 @@ export interface CategoryFormSubmitData {
   description: string;
   image?: string;
   parentId?: string | null;
+  parentCategoryId?: string | number;
   category_active: boolean;
 }
 
@@ -22,7 +23,7 @@ interface CategoryFormViewProps {
   categories?: ProductCategory[];
   isSubmitting?: boolean;
   onSubmit: (data: CategoryFormSubmitData) => void | Promise<void>;
-  onDelete?: () => void;
+  onDelete?: () => void | Promise<void>;
 }
 
 export const CategoryFormView: React.FC<CategoryFormViewProps> = ({
@@ -45,12 +46,32 @@ export const CategoryFormView: React.FC<CategoryFormViewProps> = ({
     initialData?.parentId || queryParentId
   );
   const [categoryActive, setCategoryActive] = useState<boolean>(
-    initialData?.category_active ?? false
+    initialData ? (initialData.category_active ?? false) : true
   );
   const [showHtmlPreview, setShowHtmlPreview] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [internalSaving, setInternalSaving] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  // Sync parentId if query parameter changes or resolves after hydration
+  useEffect(() => {
+    if (!initialData && queryParentId) {
+      setParentId(queryParentId);
+    }
+  }, [queryParentId, initialData]);
+
+  // Sync state if initialData is loaded/changed dynamically
+  useEffect(() => {
+    if (initialData) {
+      setName(initialData.name || '');
+      setSlug(initialData.slug || '');
+      setDescription(initialData.description || '');
+      setImage(initialData.image || '');
+      setParentId(initialData.parentId || '');
+      setCategoryActive(initialData.category_active ?? false);
+    }
+  }, [initialData]);
 
   const isBusy = isSubmitting || internalSaving;
 
@@ -76,12 +97,30 @@ export const CategoryFormView: React.FC<CategoryFormViewProps> = ({
     setFormError(null);
     setInternalSaving(true);
     try {
+      const selectedParent = categories.find(
+        (c) =>
+          c.id === parentId ||
+          (c.categoryId !== undefined && String(c.categoryId) === parentId) ||
+          c.slug === parentId
+      );
+
+      const baseSlug = slug.trim() || generateSlugFromName(trimmedName);
+      let uniqueSlug = baseSlug;
+      if (!isEditing && categories.some((c) => c.slug === uniqueSlug)) {
+        let counter = 1;
+        while (categories.some((c) => c.slug === `${baseSlug}-${counter}`)) {
+          counter++;
+        }
+        uniqueSlug = `${baseSlug}-${counter}`;
+      }
+
       await onSubmit({
         name: trimmedName,
-        slug: slug.trim() || generateSlugFromName(trimmedName),
+        slug: uniqueSlug,
         description: description.trim(),
         image: image.trim() || undefined,
         parentId: parentId.trim() || null,
+        parentCategoryId: selectedParent?.categoryId,
         category_active: categoryActive,
       });
     } catch (err: unknown) {
@@ -98,6 +137,21 @@ export const CategoryFormView: React.FC<CategoryFormViewProps> = ({
     const filtered = categories.filter((c) => c.id !== initialData?.id);
     return flattenCategoryTreeWithDepth(filtered);
   }, [categories, initialData?.id]);
+
+  const hasSelectedParentInOptions = useMemo(() => {
+    if (!parentId) return true;
+    return parentOptions.some(({ category: c }) => c.id === parentId);
+  }, [parentId, parentOptions]);
+
+  const fallbackSelectedCategory = useMemo(() => {
+    if (!parentId || hasSelectedParentInOptions) return null;
+    return categories.find(
+      (c) =>
+        c.id === parentId ||
+        String(c.categoryId) === parentId ||
+        c.slug === parentId
+    );
+  }, [parentId, hasSelectedParentInOptions, categories]);
 
   return (
     <div className="space-y-6 animate-fade-in max-w-xl mx-auto">
@@ -126,6 +180,7 @@ export const CategoryFormView: React.FC<CategoryFormViewProps> = ({
             type="button"
             variant="danger"
             size="sm"
+            disabled={isBusy || isDeleting}
             leftIcon={<Icons.Trash2 size={15} />}
             onClick={() => setShowDeleteModal(true)}
           >
@@ -193,6 +248,13 @@ export const CategoryFormView: React.FC<CategoryFormViewProps> = ({
               className="w-full text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-slate-900 dark:text-white outline-none focus:border-indigo-500"
             >
               <option value="">-- Danh mục gốc (Không có) --</option>
+              {parentId && !hasSelectedParentInOptions && (
+                <option value={parentId}>
+                  {fallbackSelectedCategory
+                    ? fallbackSelectedCategory.name
+                    : `Danh mục cha (${parentId})`}
+                </option>
+              )}
               {parentOptions.map(({ category: cat, depth }) => (
                 <option key={cat.id} value={cat.id}>
                   {depth > 0 ? `${'— '.repeat(depth)}↳ ` : ''}
@@ -326,14 +388,25 @@ export const CategoryFormView: React.FC<CategoryFormViewProps> = ({
       {isEditing && initialData && onDelete && (
         <ConfirmDeleteModal
           isOpen={showDeleteModal}
+          isLoading={isDeleting}
           title="Xác nhận xóa danh mục"
           message="Bạn có chắc chắn muốn xóa danh mục này khỏi hệ thống? Các sản phẩm thuộc danh mục này sẽ cần được phân loại lại."
           itemName={initialData.name}
           itemSubtitle={`/${initialData.slug} • ${initialData.description || ''}`}
-          onClose={() => setShowDeleteModal(false)}
-          onConfirm={() => {
-            setShowDeleteModal(false);
-            onDelete();
+          onClose={() => {
+            if (!isDeleting) setShowDeleteModal(false);
+          }}
+          onConfirm={async () => {
+            if (isDeleting) return;
+            setIsDeleting(true);
+            try {
+              await onDelete();
+              setShowDeleteModal(false);
+            } catch {
+              // Handled by parent
+            } finally {
+              setIsDeleting(false);
+            }
           }}
         />
       )}

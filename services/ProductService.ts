@@ -14,6 +14,7 @@ import {
 export const NEXT_DRAFTED_SPU_LIST_ENDPOINT = "/api/product/spu/drafted/list";
 export const NEXT_PUBLISHED_SPU_LIST_ENDPOINT = "/api/product/spu/published/list";
 export const NEXT_CREATE_SPU_ENDPOINT = "/api/product/spu/create";
+export const NEXT_PUBLISH_SPU_ENDPOINT = "/api/product/spu/publish";
 
 export const DEFAULT_SPU_VARIATION_IMAGE =
   "https://res.cloudinary.com/dgincjt1i/image/upload/v1751873400/Image-not-found_qxnjwm.png";
@@ -161,15 +162,48 @@ export function buildCreateSpuPayload(product: Partial<Product>): CreateSpuPaylo
       ? product.sku_list
       : generateCartesianSkuList(product_variations, price || 50, stock || 10);
 
-  const product_attributes: SpuProductAttributes =
-    product.product_attributes &&
-    typeof product.product_attributes.attribute_id === "number" &&
-    Array.isArray(product.product_attributes.attribute_value)
-      ? product.product_attributes
-      : {
-          attribute_id: 200000,
-          attribute_value: [{ value_id: 1 }, { value_id: 2 }],
-        };
+  let product_attributes: SpuProductAttributes = {
+    attribute_id: 200000,
+    attribute_value: [{ value_id: 1 }, { value_id: 2 }],
+  };
+
+  if (product.product_attributes) {
+    if (
+      typeof product.product_attributes.attribute_id === "number" &&
+      Array.isArray(product.product_attributes.attribute_value) &&
+      product.product_attributes.attribute_value.length > 0
+    ) {
+      product_attributes = {
+        attribute_id: Number(product.product_attributes.attribute_id),
+        attribute_value: product.product_attributes.attribute_value.map((v) => ({
+          value_id: Number(v.value_id),
+          ...(v.name ? { name: String(v.name) } : {}),
+        })),
+        ...(product.product_attributes.name
+          ? { name: String(product.product_attributes.name) }
+          : {}),
+        ...(Array.isArray(product.product_attributes.items)
+          ? { items: product.product_attributes.items }
+          : {}),
+      };
+    } else if (
+      Array.isArray(product.product_attributes.items) &&
+      product.product_attributes.items.length > 0
+    ) {
+      const first = product.product_attributes.items[0];
+      product_attributes = {
+        attribute_id: Number(first.attribute_id) || 200000,
+        ...(first.name ? { name: String(first.name) } : {}),
+        attribute_value: Array.isArray(first.attribute_value)
+          ? first.attribute_value.map((v) => ({
+              value_id: Number(v.value_id),
+              ...(v.name ? { name: String(v.name) } : {}),
+            }))
+          : [{ value_id: 1 }],
+        items: product.product_attributes.items,
+      };
+    }
+  }
 
   const product_category: string[] = Array.isArray(product.product_category)
     ? product.product_category
@@ -221,6 +255,59 @@ export function extractCreatedSpu(data: any): Record<string, any> | null {
     return metadata as Record<string, any>;
   }
   return null;
+}
+
+export function isProductPublished(product: Product): boolean {
+  return (
+    product.status === "active" ||
+    Boolean(product.publishedAt) ||
+    Boolean(product.tags?.includes("published")) ||
+    product.status !== "draft"
+  );
+}
+
+export async function apiPublishSpu(
+  productOrId: Product | string,
+  payload?: Record<string, unknown>,
+) {
+  const isProductObj = typeof productOrId === "object" && productOrId !== null;
+  const primaryId = isProductObj
+    ? String(
+        productOrId.product_id ||
+          productOrId.id ||
+          productOrId.spu_id ||
+          productOrId.sku ||
+          "",
+      ).trim()
+    : String(productOrId || "").trim();
+
+  const fallbackId = isProductObj
+    ? String(
+        productOrId.spu_id ||
+          productOrId.id ||
+          productOrId.product_id ||
+          (productOrId.sku && !productOrId.sku.startsWith("SPU-")
+            ? productOrId.sku
+            : "") ||
+          "",
+      ).trim()
+    : undefined;
+
+  return ApiService.fetchData<Record<string, any>>({
+    url: `/product/spu/publish/${encodeURIComponent(primaryId)}`,
+    method: "post",
+    data: {
+      product_id: primaryId,
+      ...(fallbackId && fallbackId !== primaryId
+        ? { fallback_id: fallbackId, spu_id: fallbackId, _id: fallbackId }
+        : {}),
+      ...(payload || {}),
+    },
+    headers: {
+      [REQUEST_HEADER_API_KEY]:
+        process.env.NEXT_PUBLIC_API_KEY || NEXT_PUBLIC_API_KEY,
+    },
+  });
 }
 
 export async function apiGetDraftedSpuList(params?: Record<string, unknown>) {
@@ -304,8 +391,23 @@ export function mapSpuToProduct(
   idx = 0,
   defaultStatus: ProductStatus = "draft",
 ): Product {
+  const rawProductId =
+    spu.product_id !== undefined &&
+    spu.product_id !== null &&
+    String(spu.product_id).trim() !== ""
+      ? String(spu.product_id).trim()
+      : spu.spu_id !== undefined &&
+          spu.spu_id !== null &&
+          String(spu.spu_id).trim() !== ""
+        ? String(spu.spu_id).trim()
+        : undefined;
+  const rawMongoId =
+    spu._id !== undefined && spu._id !== null && String(spu._id).trim() !== ""
+      ? String(spu._id).trim()
+      : undefined;
+
   const id = String(
-    spu._id || spu.product_id || spu.spu_id || spu.id || `spu-${Date.now()}-${idx}`,
+    rawProductId || rawMongoId || spu.id || `spu-${Date.now()}-${idx}`,
   );
   const resolvedStatus: ProductStatus =
     spu.isPublished === true
@@ -371,9 +473,10 @@ export function mapSpuToProduct(
 
   return {
     id,
+    product_id: rawProductId || rawMongoId || id,
+    spu_id: rawMongoId || rawProductId || id,
     sku: String(
-      spu.product_id ||
-        spu.spu_id ||
+      rawProductId ||
         spu.sku ||
         `SPU-${id.slice(-6).toUpperCase()}`,
     ),
@@ -439,6 +542,8 @@ export function mapSpuToProduct(
         }))
       : undefined,
     channels: Array.isArray(spu.channels) ? spu.channels : ["website"],
+    product_attributes: rawAttributes,
+    product_variations: Array.isArray(rawVariations) ? rawVariations : undefined,
     createdAt,
     updatedAt,
   };

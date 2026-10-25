@@ -15,6 +15,11 @@ import {
   setToken,
 } from "@/store/auth/sessionSlice";
 import { userLoggedOut } from "@/store/auth/userSlice";
+import {
+  addApiError,
+  removeApiError,
+  showErrorToast,
+} from "@/store/slices/uiSlice";
 import { handleAxiosError } from "@/lib/http/handleAxiosError";
 
 const unauthorizedCode = [401];
@@ -162,8 +167,117 @@ BaseService.interceptors.request.use(
   },
 );
 
+function normalizeEndpointPath(reqUrl: string): string {
+  const cleanUrl = reqUrl.split("?")[0] || "/api";
+  return cleanUrl.startsWith("/api")
+    ? cleanUrl
+    : `/api${cleanUrl.startsWith("/") ? "" : "/"}${cleanUrl}`;
+}
+
+export function resolveApiEndpointLabel(endpoint: string): string {
+  if (endpoint.includes("/product/spu/published/list")) {
+    return "Danh sách sản phẩm đang bán";
+  }
+  if (endpoint.includes("/product/spu/drafted/list")) {
+    return "Danh sách sản phẩm nháp";
+  }
+  if (endpoint.includes("/category/all/list")) {
+    return "Danh sách danh mục";
+  }
+  if (endpoint.includes("/product/spu/create")) {
+    return "Tạo sản phẩm SPU";
+  }
+  if (endpoint.includes("/product/spu/publish")) {
+    return "Xuất bản sản phẩm SPU";
+  }
+  if (endpoint.includes("/category/create")) {
+    return "Tạo danh mục";
+  }
+  if (endpoint.includes("/category/delete")) {
+    return "Xóa danh mục";
+  }
+  if (endpoint.includes("/category/update") || endpoint.includes("/category/status")) {
+    return "Cập nhật danh mục";
+  }
+  if (endpoint.includes("/shop/refreshtoken")) {
+    return "Làm mới phiên đăng nhập";
+  }
+  return endpoint;
+}
+
+function notifyServerError(
+  normalized: { status: number; message: string },
+  reqUrl: string,
+) {
+  if (
+    normalized.status >= 500 &&
+    !reqUrl.includes("/shop/signin") &&
+    !reqUrl.includes("/shop/signout")
+  ) {
+    const endpoint = normalizeEndpointPath(reqUrl);
+    const label = resolveApiEndpointLabel(endpoint);
+    store.dispatch(
+      addApiError({
+        id: endpoint,
+        endpoint,
+        label,
+        status: normalized.status,
+        message: normalized.message,
+        timestamp: new Date().toLocaleTimeString("vi-VN", {
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+        }),
+      }),
+    );
+    store.dispatch(
+      showErrorToast(normalized.message),
+    );
+  }
+}
+
 BaseService.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    const reqUrl = String(response?.config?.url || "");
+    const endpoint = normalizeEndpointPath(reqUrl);
+    const data = response?.data;
+
+    if (data && typeof data === "object" && !Array.isArray(data)) {
+      const payloadCode = Number(
+        data.code ??
+          data.statusCode ??
+          (typeof data.status === "number" ? data.status : 0),
+      );
+      if (
+        payloadCode >= 500 ||
+        (data.status === "error" && (!payloadCode || payloadCode >= 500))
+      ) {
+        const status = payloadCode >= 500 ? payloadCode : 500;
+        const msg =
+          typeof data.message === "string" && data.message.trim()
+            ? data.message.trim()
+            : handleAxiosError(new Error("Internal Server Error")).message;
+        const normalized = {
+          status,
+          message: msg,
+          errors: data.errors,
+          isAxiosError: true,
+        };
+        notifyServerError(normalized, reqUrl);
+        return Promise.reject(normalized);
+      }
+    }
+
+    const existingErrors = store.getState()?.ui?.apiErrors;
+    if (
+      Array.isArray(existingErrors) &&
+      existingErrors.some((e) => e.endpoint === endpoint)
+    ) {
+      store.dispatch(removeApiError(endpoint));
+    }
+
+    return response;
+  },
   async (error) => {
     const { response, config } = error;
     const originalRequest = config as AxiosRequestConfig & { _retry?: boolean };
@@ -220,11 +334,15 @@ BaseService.interceptors.response.use(
           store.dispatch(onSignOutSuccess());
           store.dispatch(userLoggedOut());
         }
-        return Promise.reject(handleAxiosError(refreshError));
+        const normalizedRefreshErr = handleAxiosError(refreshError);
+        notifyServerError(normalizedRefreshErr, reqUrl);
+        return Promise.reject(normalizedRefreshErr);
       }
     }
 
-    return Promise.reject(handleAxiosError(error));
+    const normalized = handleAxiosError(error);
+    notifyServerError(normalized, reqUrl);
+    return Promise.reject(normalized);
   },
 );
 

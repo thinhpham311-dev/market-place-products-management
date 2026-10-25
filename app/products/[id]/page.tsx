@@ -10,7 +10,11 @@ import { Icons } from '@/components/ui/Icons';
 export default function ProductDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
-  const product = useAppSelector((s) => s.products.items.find((p) => p.id === id));
+  const product = useAppSelector((s) =>
+    s.products.items.find(
+      (p) => p.id === id || p.product_id === id || p.spu_id === id || p.sku === id
+    )
+  );
 
   if (!product) {
     return (

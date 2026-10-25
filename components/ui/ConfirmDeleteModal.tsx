@@ -18,8 +18,9 @@ interface ConfirmDeleteModalProps {
   itemIcon?: React.ReactNode;
   confirmLabel?: string;
   cancelLabel?: string;
+  isLoading?: boolean;
   onClose: () => void;
-  onConfirm: () => void;
+  onConfirm: () => void | Promise<void>;
 }
 
 export const ConfirmDeleteModal: React.FC<ConfirmDeleteModalProps> = ({
@@ -34,6 +35,7 @@ export const ConfirmDeleteModal: React.FC<ConfirmDeleteModalProps> = ({
   itemIcon,
   confirmLabel,
   cancelLabel,
+  isLoading = false,
   onClose,
   onConfirm,
 }) => {
@@ -44,23 +46,31 @@ export const ConfirmDeleteModal: React.FC<ConfirmDeleteModalProps> = ({
   return (
     <Modal
       isOpen={isOpen}
-      onClose={onClose}
+      onClose={isLoading ? () => {} : onClose}
       title={title}
       description={subtitle || t('delete_modal.subtitle')}
       maxWidth="md"
       footer={
         <>
-          <Button type="button" variant="outline" size="sm" onClick={onClose}>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={isLoading}
+            onClick={onClose}
+          >
             {cancelLabel || t('table.cancel')}
           </Button>
           <Button
             type="button"
             variant="danger"
             size="sm"
+            isLoading={isLoading}
+            disabled={isLoading}
             leftIcon={<Icons.Trash2 size={15} />}
             onClick={onConfirm}
           >
-            {confirmLabel || t('delete_modal.confirm_btn')}
+            {confirmLabel || (isLoading ? 'Đang xóa...' : t('delete_modal.confirm_btn'))}
           </Button>
         </>
       }

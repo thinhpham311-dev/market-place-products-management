@@ -1,6 +1,6 @@
 'use client';
 
-import React, { Suspense, useEffect } from 'react';
+import React, { Suspense, useCallback, useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { selectDashboardMetrics } from '@/store/selectors/metricsSelectors';
@@ -11,6 +11,11 @@ import {
   setGlobalSearch,
   clearToast,
   showToast,
+  showErrorToast,
+  addApiError,
+  removeApiError,
+  clearApiErrors,
+  DashboardApiError,
 } from '@/store/slices/uiSlice';
 import {
   onSignOutSuccess,
@@ -24,6 +29,10 @@ import { setCategories } from '@/store/slices/categoriesSlice';
 import { useHydrated } from '@/store/StoreProvider';
 import { apiSignOut } from '@/services/AuthService';
 import { refreshAccessTokenSingleFlight } from '@/services/BaseService';
+import {
+  getApiErrorMessage,
+  toUserFriendlyErrorMessage,
+} from '@/lib/http/handleAxiosError';
 import {
   apiGetDraftedSpuList,
   apiGetPublishedSpuList,
@@ -96,6 +105,10 @@ export const DashboardShell: React.FC<{ children: React.ReactNode }> = ({ childr
   const mobileDrawerOpen = useAppSelector((s) => s.ui.mobileDrawerOpen);
   const globalSearch = useAppSelector((s) => s.ui.globalSearch);
   const toastMessage = useAppSelector((s) => s.ui.toastMessage);
+  const toastType = useAppSelector((s) => s.ui.toastType ?? 'success');
+  const apiErrors = useAppSelector((s) => s.ui.apiErrors ?? []);
+
+  const [isRetryingApi, setIsRetryingApi] = useState(false);
 
   const isAuthPage = AUTH_PATHS.includes(pathname);
   const currentTab = getActiveTabFromPathname(pathname);
@@ -106,56 +119,156 @@ export const DashboardShell: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   }, [currentTab, isAuthPage, dispatch]);
 
+  const loadSpuAndCategories = useCallback(
+    async (isManualRetry = false) => {
+      if (!isHydrated || !signedIn || isAuthPage || !accessToken) {
+        return;
+      }
+
+      if (isManualRetry) {
+        setIsRetryingApi(true);
+      }
+
+      try {
+        const [publishedRes, draftedRes, categoriesRes] = await Promise.allSettled([
+          apiGetPublishedSpuList(),
+          apiGetDraftedSpuList(),
+          apiGetCategoryAllList(),
+        ]);
+
+        const failedErrors: DashboardApiError[] = [];
+        const nowTime = new Date().toLocaleTimeString('vi-VN', {
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+        });
+
+        const checkResultError = (
+          res: PromiseSettledResult<{ data: any }>,
+          endpoint: string,
+          label: string
+        ) => {
+          if (res.status === 'rejected') {
+            const reason = res.reason as {
+              status?: number;
+              message?: string;
+              response?: { status?: number; data?: { message?: string } };
+            };
+            const status =
+              reason?.status ?? reason?.response?.status ?? 500;
+            const message = getApiErrorMessage(reason);
+            if (status >= 500) {
+              const errItem: DashboardApiError = {
+                id: endpoint,
+                endpoint,
+                label,
+                status,
+                message,
+                timestamp: nowTime,
+              };
+              failedErrors.push(errItem);
+              dispatch(addApiError(errItem));
+            }
+            return true;
+          }
+
+          const data = res.value?.data;
+          if (data && typeof data === 'object' && !Array.isArray(data)) {
+            const payloadCode = Number(
+              data.code ??
+                data.statusCode ??
+                (typeof data.status === 'number' ? data.status : 0)
+            );
+            if (
+              payloadCode >= 500 ||
+              (data.status === 'error' && (!payloadCode || payloadCode >= 500))
+            ) {
+              const status = payloadCode >= 500 ? payloadCode : 500;
+              const message = toUserFriendlyErrorMessage(
+                typeof data.message === 'string' ? data.message : undefined,
+                status
+              );
+              const errItem: DashboardApiError = {
+                id: endpoint,
+                endpoint,
+                label,
+                status,
+                message,
+                timestamp: nowTime,
+              };
+              failedErrors.push(errItem);
+              dispatch(addApiError(errItem));
+              return true;
+            }
+          }
+
+          dispatch(removeApiError(endpoint));
+          return false;
+        };
+
+        const pubFailed = checkResultError(
+          publishedRes,
+          '/api/product/spu/published/list',
+          'Danh sách sản phẩm đang bán'
+        );
+        const draftFailed = checkResultError(
+          draftedRes,
+          '/api/product/spu/drafted/list',
+          'Danh sách sản phẩm nháp'
+        );
+        const catFailed = checkResultError(
+          categoriesRes,
+          '/api/category/all/list',
+          'Danh sách danh mục'
+        );
+
+        if (!pubFailed && publishedRes.status === 'fulfilled') {
+          const rawPublished = extractSpuArray(publishedRes.value.data);
+          if (Array.isArray(rawPublished)) {
+            const mappedPublished = rawPublished.map((item, idx) =>
+              mapSpuToProduct(item, idx, 'active')
+            );
+            dispatch(setPublishedProducts(mappedPublished));
+          }
+        }
+
+        if (!draftFailed && draftedRes.status === 'fulfilled') {
+          const rawDrafted = extractSpuArray(draftedRes.value.data);
+          if (Array.isArray(rawDrafted)) {
+            const mappedDrafted = rawDrafted.map((item, idx) =>
+              mapSpuToProduct(item, idx, 'draft')
+            );
+            dispatch(setDraftedProducts(mappedDrafted));
+          }
+        }
+
+        if (!catFailed && categoriesRes.status === 'fulfilled') {
+          const rawCategories = extractCategoryArray(categoriesRes.value.data);
+          if (Array.isArray(rawCategories)) {
+            const mappedCategories = mapRawCategoryList(rawCategories);
+            dispatch(setCategories(mappedCategories));
+          }
+        }
+
+        if (failedErrors.length > 0) {
+          dispatch(showErrorToast(failedErrors[0].message));
+        } else if (isManualRetry) {
+          dispatch(clearApiErrors());
+          dispatch(showToast('Đã kết nối lại và tải dữ liệu thành công!'));
+        }
+      } finally {
+        if (isManualRetry) {
+          setIsRetryingApi(false);
+        }
+      }
+    },
+    [isHydrated, signedIn, isAuthPage, accessToken, dispatch]
+  );
+
   // Fetch published (/v1/api/product/spu/published/list), drafted (/v1/api/product/spu/drafted/list) & categories (/v1/api/category/all/list) after hydration & sign-in
   useEffect(() => {
-    if (!isHydrated || !signedIn || isAuthPage || !accessToken) {
-      return;
-    }
-
-    let cancelled = false;
-    const loadSpuAndCategories = async () => {
-      const [publishedRes, draftedRes, categoriesRes] = await Promise.allSettled([
-        apiGetPublishedSpuList(),
-        apiGetDraftedSpuList(),
-        apiGetCategoryAllList(),
-      ]);
-
-      if (cancelled) return;
-
-      if (publishedRes.status === 'fulfilled') {
-        const rawPublished = extractSpuArray(publishedRes.value.data);
-        if (Array.isArray(rawPublished)) {
-          const mappedPublished = rawPublished.map((item, idx) =>
-            mapSpuToProduct(item, idx, 'active')
-          );
-          dispatch(setPublishedProducts(mappedPublished));
-        }
-      }
-
-      if (draftedRes.status === 'fulfilled') {
-        const rawDrafted = extractSpuArray(draftedRes.value.data);
-        if (Array.isArray(rawDrafted)) {
-          const mappedDrafted = rawDrafted.map((item, idx) =>
-            mapSpuToProduct(item, idx, 'draft')
-          );
-          dispatch(setDraftedProducts(mappedDrafted));
-        }
-      }
-
-      if (categoriesRes.status === 'fulfilled') {
-        const rawCategories = extractCategoryArray(categoriesRes.value.data);
-        if (Array.isArray(rawCategories)) {
-          const mappedCategories = mapRawCategoryList(rawCategories);
-          dispatch(setCategories(mappedCategories));
-        }
-      }
-    };
-
-    void loadSpuAndCategories();
-    return () => {
-      cancelled = true;
-    };
-  }, [isHydrated, signedIn, isAuthPage, accessToken, user?.id, dispatch]);
+    void loadSpuAndCategories(false);
+  }, [loadSpuAndCategories, user?.id]);
 
   // Redirect unauthenticated users to /login when accessing protected pages after store hydration
   useEffect(() => {
@@ -229,11 +342,12 @@ export const DashboardShell: React.FC<{ children: React.ReactNode }> = ({ childr
   // Toast auto-dismiss
   useEffect(() => {
     if (!toastMessage) return;
+    const duration = toastType === 'error' ? 6000 : 3500;
     const timer = setTimeout(() => {
       dispatch(clearToast());
-    }, 3500);
+    }, duration);
     return () => clearTimeout(timer);
-  }, [toastMessage, dispatch]);
+  }, [toastMessage, toastType, dispatch]);
 
   const handleSelectTab = (tab: TabType) => {
     dispatch(setActiveTab(tab));
@@ -263,6 +377,7 @@ export const DashboardShell: React.FC<{ children: React.ReactNode }> = ({ childr
     } finally {
       dispatch(onSignOutSuccess());
       dispatch(userLoggedOut());
+      dispatch(clearApiErrors());
       dispatch(showToast('Đã đăng xuất tài khoản thành công (/api/shop/signout).'));
       router.push('/login');
     }
@@ -273,11 +388,31 @@ export const DashboardShell: React.FC<{ children: React.ReactNode }> = ({ childr
     return (
       <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100">
         {toastMessage && (
-          <div className="fixed top-6 right-6 z-50 bg-slate-900 text-white dark:bg-white dark:text-slate-900 px-4 py-3 rounded-2xl shadow-2xl border border-slate-700 dark:border-slate-200 flex items-center gap-3 animate-in slide-in-from-top-4 duration-200">
-            <div className="w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center shrink-0">
-              <Icons.Check size={14} />
+          <div
+            className={`fixed top-6 right-6 z-50 max-w-md px-4 py-3 rounded-2xl shadow-2xl border flex items-center gap-3 animate-in slide-in-from-top-4 duration-200 ${
+              toastType === 'error'
+                ? 'bg-rose-950 text-white border-rose-700/80'
+                : 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 border-slate-700 dark:border-slate-200'
+            }`}
+          >
+            <div
+              className={`w-6 h-6 rounded-full text-white flex items-center justify-center shrink-0 ${
+                toastType === 'error' ? 'bg-rose-500' : 'bg-emerald-500'
+              }`}
+            >
+              {toastType === 'error' ? (
+                <Icons.AlertCircle size={14} />
+              ) : (
+                <Icons.Check size={14} />
+              )}
             </div>
-            <span className="text-xs font-semibold">{toastMessage}</span>
+            <span className="text-xs font-semibold flex-1">{toastMessage}</span>
+            <button
+              onClick={() => dispatch(clearToast())}
+              className="text-slate-400 hover:text-white transition-colors cursor-pointer"
+            >
+              <Icons.X size={14} />
+            </button>
           </div>
         )}
         <Suspense fallback={null}>{children}</Suspense>
@@ -293,11 +428,38 @@ export const DashboardShell: React.FC<{ children: React.ReactNode }> = ({ childr
     <div className="min-h-screen flex bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100">
       {/* Toast Notification Floating Alert */}
       {toastMessage && (
-        <div className="fixed top-20 right-6 z-50 bg-slate-900 text-white dark:bg-white dark:text-slate-900 px-4 py-3 rounded-2xl shadow-2xl border border-slate-700 dark:border-slate-200 flex items-center gap-3 animate-in slide-in-from-top-4 duration-200">
-          <div className="w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center shrink-0">
-            <Icons.Check size={14} />
+        <div
+          className={`fixed top-20 right-6 z-50 max-w-md px-4 py-3 rounded-2xl shadow-2xl border flex items-start gap-3 animate-in slide-in-from-top-4 duration-200 ${
+            toastType === 'error'
+              ? 'bg-rose-950/95 text-white border-rose-700/80 shadow-rose-950/40'
+              : 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 border-slate-700 dark:border-slate-200'
+          }`}
+        >
+          <div
+            className={`w-6 h-6 rounded-full text-white flex items-center justify-center shrink-0 mt-0.5 ${
+              toastType === 'error' ? 'bg-rose-500' : 'bg-emerald-500'
+            }`}
+          >
+            {toastType === 'error' ? (
+              <Icons.AlertCircle size={14} />
+            ) : (
+              <Icons.Check size={14} />
+            )}
           </div>
-          <span className="text-xs font-semibold">{toastMessage}</span>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-semibold break-words">
+              {toastType === 'error'
+                ? toUserFriendlyErrorMessage(toastMessage, 500)
+                : toastMessage}
+            </p>
+          </div>
+          <button
+            onClick={() => dispatch(clearToast())}
+            className="text-slate-400 hover:text-white dark:hover:text-slate-600 transition-colors shrink-0 mt-0.5 cursor-pointer"
+            title="Đóng thông báo"
+          >
+            <Icons.X size={14} />
+          </button>
         </div>
       )}
 
@@ -326,13 +488,55 @@ export const DashboardShell: React.FC<{ children: React.ReactNode }> = ({ childr
           searchQuery={globalSearch}
           setSearchQuery={(v) => dispatch(setGlobalSearch(v))}
           lowStockCount={metrics.lowStockProducts + metrics.outOfStockProducts}
+          apiErrors={apiErrors}
+          onRetryApiErrors={() => void loadSpuAndCategories(true)}
+          onClearApiErrors={() => dispatch(clearApiErrors())}
           user={user}
           onLogout={handleLogout}
         />
 
         {/* Dynamic Main Body */}
         <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto">
-          <Suspense fallback={null}>{children}</Suspense>
+          {apiErrors.length > 0 ? (
+            <div
+              role="alert"
+              className="flex flex-col items-center justify-center min-h-[60vh] text-center px-4 animate-fade-in"
+            >
+              <div className="max-w-md w-full rounded-3xl border border-rose-200 dark:border-rose-800/80 bg-white dark:bg-slate-900 p-6 sm:p-8 shadow-lg">
+                <div className="w-14 h-14 rounded-2xl bg-rose-100 dark:bg-rose-950/70 text-rose-600 dark:text-rose-400 flex items-center justify-center mx-auto mb-4">
+                  <Icons.AlertTriangle size={28} />
+                </div>
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-100 dark:bg-rose-950/80 text-rose-700 dark:text-rose-300 mb-2">
+                  Tạm thời gián đoạn
+                </span>
+                <h2 className="text-lg font-bold text-slate-900 dark:text-white">
+                  Chưa thể tải thông tin trang quản lý
+                </h2>
+                <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-2 leading-relaxed">
+                  {toUserFriendlyErrorMessage(
+                    apiErrors[0]?.message,
+                    apiErrors[0]?.status ?? 500
+                  )}
+                </p>
+                <div className="mt-6 flex items-center justify-center">
+                  <button
+                    type="button"
+                    onClick={() => void loadSpuAndCategories(true)}
+                    disabled={isRetryingApi}
+                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-semibold bg-rose-600 hover:bg-rose-700 disabled:opacity-60 text-white shadow-sm transition-all cursor-pointer"
+                  >
+                    <Icons.RefreshCw
+                      size={14}
+                      className={isRetryingApi ? 'animate-spin' : ''}
+                    />
+                    <span>{isRetryingApi ? 'Đang thử lại...' : 'Thử lại'}</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <Suspense fallback={null}>{children}</Suspense>
+          )}
         </main>
       </div>
     </div>

@@ -4,12 +4,52 @@ import { Product, ProductStatus, InventoryLog } from '@/types/product';
 interface ProductsState {
   items: Product[];
   inventoryLogs: InventoryLog[];
+  publishedOverrides?: Record<string, boolean>;
 }
 
 const initialState: ProductsState = {
   items: [],
   inventoryLogs: [],
+  publishedOverrides: {},
 };
+
+function matchesProductId(product: Product, targetId: string): boolean {
+  return (
+    product.id === targetId ||
+    product.product_id === targetId ||
+    product.spu_id === targetId ||
+    product.sku === targetId
+  );
+}
+
+function recordPublishedOverride(
+  state: ProductsState,
+  product: Product,
+  isPublished: boolean
+) {
+  if (!state.publishedOverrides) {
+    state.publishedOverrides = {};
+  }
+  state.publishedOverrides[product.id] = isPublished;
+  if (product.product_id) {
+    state.publishedOverrides[product.product_id] = isPublished;
+  }
+  if (product.spu_id) {
+    state.publishedOverrides[product.spu_id] = isPublished;
+  }
+}
+
+function isProductPublishedByOverride(
+  product: Product,
+  overrides?: Record<string, boolean>
+): boolean {
+  if (!overrides) return false;
+  return Boolean(
+    overrides[product.id] ||
+      (product.product_id && overrides[product.product_id]) ||
+      (product.spu_id && overrides[product.spu_id])
+  );
+}
 
 
 const productsSlice = createSlice({
@@ -53,9 +93,12 @@ const productsSlice = createSlice({
 
     // Toggle status
     toggleStatus(state, action: PayloadAction<string>) {
-      const product = state.items.find((p) => p.id === action.payload);
+      const product = state.items.find((p) => matchesProductId(p, action.payload));
       if (product) {
         product.status = product.status === 'active' ? 'archived' : 'active';
+        if (product.status === 'active') {
+          recordPublishedOverride(state, product, true);
+        }
       }
     },
 
@@ -146,13 +189,14 @@ const productsSlice = createSlice({
     ) {
       const { productId, channels, publishMode, scheduledTime } = action.payload;
       const now = new Date().toISOString().replace('T', ' ').slice(0, 16);
-      const product = state.items.find((p) => p.id === productId);
+      const product = state.items.find((p) => matchesProductId(p, productId));
       if (!product) return;
 
       product.channels = channels;
       if (publishMode === 'instant') {
         product.status = 'active';
         product.publishedAt = now;
+        recordPublishedOverride(state, product, true);
       } else {
         product.scheduledPublishAt = scheduledTime;
       }
@@ -162,9 +206,10 @@ const productsSlice = createSlice({
     bulkPublish(state, action: PayloadAction<string[]>) {
       const now = new Date().toISOString().replace('T', ' ').slice(0, 16);
       state.items.forEach((p) => {
-        if (action.payload.includes(p.id)) {
+        if (action.payload.some((id) => matchesProductId(p, id))) {
           p.status = 'active';
           p.publishedAt = now;
+          recordPublishedOverride(state, p, true);
         }
       });
     },
@@ -176,31 +221,60 @@ const productsSlice = createSlice({
     ) {
       const { ids, status } = action.payload;
       state.items.forEach((p) => {
-        if (ids.includes(p.id)) {
+        if (ids.some((id) => matchesProductId(p, id))) {
           p.status = status;
+          if (status === 'active') {
+            recordPublishedOverride(state, p, true);
+          }
         }
       });
     },
 
     // Bulk delete
     bulkDelete(state, action: PayloadAction<string[]>) {
-      state.items = state.items.filter((p) => !action.payload.includes(p.id));
+      state.items = state.items.filter(
+        (p) => !action.payload.some((id) => matchesProductId(p, id))
+      );
     },
 
     // Sync drafted products fetched from /v1/api/product/spu/drafted/list
     setDraftedProducts(state, action: PayloadAction<Product[]>) {
-      const incomingIds = new Set(action.payload.map((p) => p.id));
-      const nonDraftItems = state.items.filter(
-        (p) => p.status !== 'draft' && !incomingIds.has(p.id)
+      const overrides = state.publishedOverrides || {};
+      const adjustedIncoming = action.payload.map((p) =>
+        isProductPublishedByOverride(p, overrides)
+          ? { ...p, status: 'active' as ProductStatus }
+          : p
       );
-      state.items = [...nonDraftItems, ...action.payload];
+      const incomingKeys = new Set<string>();
+      adjustedIncoming.forEach((p) => {
+        incomingKeys.add(p.id);
+        if (p.product_id) incomingKeys.add(p.product_id);
+        if (p.spu_id) incomingKeys.add(p.spu_id);
+      });
+      const nonDraftItems = state.items.filter(
+        (p) =>
+          p.status !== 'draft' &&
+          !incomingKeys.has(p.id) &&
+          !(p.product_id && incomingKeys.has(p.product_id)) &&
+          !(p.spu_id && incomingKeys.has(p.spu_id))
+      );
+      state.items = [...nonDraftItems, ...adjustedIncoming];
     },
 
     // Sync published products fetched from /v1/api/product/spu/published/list
     setPublishedProducts(state, action: PayloadAction<Product[]>) {
-      const incomingIds = new Set(action.payload.map((p) => p.id));
+      const incomingKeys = new Set<string>();
+      action.payload.forEach((p) => {
+        incomingKeys.add(p.id);
+        if (p.product_id) incomingKeys.add(p.product_id);
+        if (p.spu_id) incomingKeys.add(p.spu_id);
+      });
       const draftItems = state.items.filter(
-        (p) => p.status === 'draft' && !incomingIds.has(p.id)
+        (p) =>
+          p.status === 'draft' &&
+          !incomingKeys.has(p.id) &&
+          !(p.product_id && incomingKeys.has(p.product_id)) &&
+          !(p.spu_id && incomingKeys.has(p.spu_id))
       );
       state.items = [...action.payload, ...draftItems];
     },

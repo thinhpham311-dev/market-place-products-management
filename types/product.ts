@@ -17,9 +17,24 @@ export interface SpuSkuItem {
   sku_stock: number;
 }
 
+export interface SpuProductAttributeValue {
+  value_id: number;
+  name?: string;
+}
+
+export interface SpuAttributeItem {
+  id: string;
+  name: string;
+  attribute_id: number;
+  attribute_value: SpuProductAttributeValue[];
+}
+
 export interface SpuProductAttributes {
   attribute_id: number;
-  attribute_value: Array<{ value_id: number }>;
+  attribute_value: SpuProductAttributeValue[];
+  name?: string;
+  items?: SpuAttributeItem[];
+  [key: string]: any;
 }
 
 export interface ProductVariant {
@@ -53,6 +68,8 @@ export interface ProductCategory {
 
 export interface Product {
   id: string;
+  product_id?: string;
+  spu_id?: string;
   sku: string;
   barcode?: string;
   name: string;

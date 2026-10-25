@@ -8,15 +8,17 @@ import {
 export const NEXT_CATEGORY_ALL_LIST_ENDPOINT = "/api/category/all/list";
 export const NEXT_CATEGORY_CREATE_ENDPOINT = "/api/category/create";
 export const NEXT_CATEGORY_UPDATE_ENDPOINT = "/api/category/update";
+export const NEXT_CATEGORY_DELETE_ENDPOINT = "/api/category/delete";
 
 export interface CreateCategoryPayload {
   category_name: string;
-  category_thumb?: string;
   category_description?: string;
   category_slug?: string;
   category_active?: boolean;
+  category_thumb?: string;
+  category_image?: string;
   parent_id?: string | number | null;
-  category_parentId?: string | number | null;
+  sort_order?: number;
   name?: string;
   slug?: string;
   description?: string;
@@ -32,8 +34,9 @@ export interface UpdateCategoryPayload {
   category_slug?: string;
   category_description?: string;
   category_thumb?: string;
+  category_image?: string;
   parent_id?: string | number | null;
-  category_parentId?: string | number | null;
+  sort_order?: number;
 }
 
 export async function apiGetCategoryAllList(params?: Record<string, unknown>) {
@@ -73,6 +76,13 @@ export async function apiUpdateCategoryStatus(payload: UpdateCategoryPayload) {
     category_active: Boolean(payload.category_active),
   };
 
+  if (payload.id) {
+    data._id = payload.id;
+    data.id = payload.id;
+  }
+  if (payload.categoryId !== undefined && payload.categoryId !== null) {
+    data.category_id = payload.categoryId;
+  }
   if (payload.category_name !== undefined) {
     data.category_name = payload.category_name;
   }
@@ -85,12 +95,14 @@ export async function apiUpdateCategoryStatus(payload: UpdateCategoryPayload) {
   if (payload.category_thumb !== undefined) {
     data.category_thumb = payload.category_thumb;
   }
+  if (payload.category_image !== undefined) {
+    data.category_image = payload.category_image;
+  }
+  if (payload.sort_order !== undefined) {
+    data.sort_order = payload.sort_order;
+  }
   if (payload.parent_id !== undefined) {
     data.parent_id = payload.parent_id;
-    data.category_parentId = payload.parent_id;
-  } else if (payload.category_parentId !== undefined) {
-    data.parent_id = payload.category_parentId;
-    data.category_parentId = payload.category_parentId;
   }
   if (fallbackId) {
     data.fallback_id = fallbackId;
@@ -107,6 +119,29 @@ export async function apiUpdateCategoryStatus(payload: UpdateCategoryPayload) {
   });
 }
 
+export async function apiDeleteCategory(
+  id: string | number,
+  fallbackCategoryId?: string | number,
+) {
+  const primaryId = String(id).trim();
+  const fallbackId =
+    fallbackCategoryId !== undefined &&
+    fallbackCategoryId !== null &&
+    String(fallbackCategoryId).trim() !== primaryId
+      ? String(fallbackCategoryId).trim()
+      : undefined;
+
+  return ApiService.fetchData<Record<string, any>>({
+    url: `/category/delete/${encodeURIComponent(primaryId)}`,
+    method: "delete",
+    params: fallbackId ? { fallback_id: fallbackId } : undefined,
+    headers: {
+      [REQUEST_HEADER_API_KEY]:
+        process.env.NEXT_PUBLIC_API_KEY || NEXT_PUBLIC_API_KEY,
+    },
+  });
+}
+
 export function buildCreateCategoryPayload(input: {
   name: string;
   slug?: string;
@@ -114,6 +149,7 @@ export function buildCreateCategoryPayload(input: {
   image?: string;
   icon?: string;
   parentId?: string | null;
+  parentCategoryId?: string | number;
   category_active?: boolean;
 }): CreateCategoryPayload {
   const trimmedName = input.name.trim();
@@ -130,16 +166,20 @@ export function buildCreateCategoryPayload(input: {
   const trimmedThumb = input.image?.trim() || "";
   const trimmedDesc = input.description?.trim() || "";
   const resolvedParentId =
-    input.parentId && input.parentId.trim() ? input.parentId.trim() : null;
+    input.parentId && input.parentId.trim() && input.parentId.trim() !== "null"
+      ? input.parentId.trim()
+      : null;
+
+  const resolvedParentKey = input.parentCategoryId ?? resolvedParentId;
 
   return {
     category_name: trimmedName,
     category_slug: resolvedSlug,
     category_description: trimmedDesc,
     category_thumb: trimmedThumb,
-    category_active: input.category_active ?? false,
-    parent_id: resolvedParentId,
-    category_parentId: resolvedParentId,
+    category_image: trimmedThumb,
+    category_active: input.category_active ?? true,
+    parent_id: resolvedParentKey,
     name: trimmedName,
     slug: resolvedSlug,
     description: trimmedDesc,
@@ -247,22 +287,55 @@ export function extractCategoryArray(data: any): Record<string, any>[] | null {
   return findArrayInContainer(data, 0);
 }
 
-function extractParentIdentifier(rawParent: unknown): string | null {
-  if (rawParent === null || rawParent === undefined) return null;
-  if (typeof rawParent === "object") {
-    const obj = rawParent as Record<string, any>;
-    const nestedId =
+function extractIdString(val: unknown): string | null {
+  if (val === null || val === undefined) return null;
+  if (typeof val === "object") {
+    const obj = val as Record<string, any>;
+    const nested =
+      obj.$oid ??
       obj._id ??
       obj.category_id ??
       obj.cat_id ??
       obj.id ??
+      obj.value ??
       obj.category_slug ??
       obj.slug;
-    return nestedId !== undefined && nestedId !== null
-      ? String(nestedId).trim()
-      : null;
+    if (nested !== undefined && nested !== null) {
+      return extractIdString(nested);
+    }
+    if (
+      typeof (val as any).toString === "function" &&
+      (val as any).toString !== Object.prototype.toString
+    ) {
+      const s = String((val as any).toString()).trim();
+      if (s && s !== "[object Object]") return s;
+    }
   }
-  const str = String(rawParent).trim();
+  const str = String(val).trim();
+  if (
+    !str ||
+    str === "null" ||
+    str === "undefined" ||
+    str === "[object Object]"
+  ) {
+    return null;
+  }
+  return str;
+}
+
+function normalizeForCategoryMatch(val: unknown): string {
+  if (val === null || val === undefined) return "";
+  return String(val)
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/đ/g, "d")
+    .replace(/[^a-z0-9]/g, "")
+    .trim();
+}
+
+function extractParentIdentifier(rawParent: unknown): string | null {
+  const str = extractIdString(rawParent);
   if (
     !str ||
     str === "0" ||
@@ -349,11 +422,11 @@ export function mapRawToCategory(
   );
 
   const rawId =
-    raw._id ??
-    raw.category_id ??
-    raw.cat_id ??
-    raw.id ??
-    raw.value ??
+    extractIdString(raw._id) ??
+    extractIdString(raw.category_id) ??
+    extractIdString(raw.cat_id) ??
+    extractIdString(raw.id) ??
+    extractIdString(raw.value) ??
     (raw.category_slug || raw.slug ? `${slug}-${pathKey}` : null);
 
   const id =
@@ -387,16 +460,24 @@ export function mapRawToCategory(
       ? rawImage
       : undefined;
 
-  const rawParent =
-    raw.parent_id ??
-    raw.category_parentId ??
-    raw.category_parent_id ??
-    raw.cat_parent_id ??
-    raw.parentId ??
-    raw.parent ??
-    fallbackParentId;
+  const parentCandidates = [
+    raw.parent_id,
+    raw.category_parentId,
+    raw.parentId,
+    raw.category_parent_id,
+    raw.cat_parent_id,
+    raw.parent,
+    fallbackParentId,
+  ];
 
-  const normalizedParentId = extractParentIdentifier(rawParent);
+  let normalizedParentId: string | null = null;
+  for (const cand of parentCandidates) {
+    const extracted = extractParentIdentifier(cand);
+    if (extracted) {
+      normalizedParentId = extracted;
+      break;
+    }
+  }
 
   const rawActive =
     raw.category_active ??
@@ -473,13 +554,15 @@ export function mapRawCategoryList(
     parentId: string | null = null,
   ) => {
     for (const item of items) {
+      const existing = byId.get(item.id);
       const effectiveParentId =
         item.parentId && item.parentId !== item.id
           ? item.parentId
           : parentId && parentId !== item.id
             ? parentId
-            : null;
-      const existing = byId.get(item.id);
+            : existing?.parentId && existing.parentId !== item.id
+              ? existing.parentId
+              : null;
       const merged: ProductCategory = {
         ...(existing || {}),
         ...item,
@@ -520,12 +603,29 @@ export function buildCategoryTree(
       children: [],
     });
 
-    aliasMap.set(String(cat.id), cat.id);
+    // Register all aliases for robust parent-child resolution
+    const idStr = String(cat.id).trim();
+    aliasMap.set(idStr, cat.id);
+    aliasMap.set(idStr.toLowerCase(), cat.id);
+
     if (cat.categoryId !== undefined && cat.categoryId !== null) {
-      aliasMap.set(String(cat.categoryId), cat.id);
+      const catIdStr = String(cat.categoryId).trim();
+      aliasMap.set(catIdStr, cat.id);
+      aliasMap.set(catIdStr.toLowerCase(), cat.id);
     }
     if (cat.slug) {
-      aliasMap.set(cat.slug, cat.id);
+      const slugStr = cat.slug.trim();
+      aliasMap.set(slugStr, cat.id);
+      aliasMap.set(slugStr.toLowerCase(), cat.id);
+      const normSlug = normalizeForCategoryMatch(slugStr);
+      if (normSlug) aliasMap.set(normSlug, cat.id);
+    }
+    if (cat.name) {
+      const nameStr = cat.name.trim();
+      aliasMap.set(nameStr, cat.id);
+      aliasMap.set(nameStr.toLowerCase(), cat.id);
+      const normName = normalizeForCategoryMatch(nameStr);
+      if (normName) aliasMap.set(normName, cat.id);
     }
 
     if (cat.children && cat.children.length > 0) {
@@ -570,10 +670,41 @@ export function buildCategoryTree(
 
   // Pass 1: Attach using explicit parentId / children relationship
   for (const node of nodeMap.values()) {
-    const rawParentKey = node.parentId ? String(node.parentId) : null;
-    const resolvedParentId = rawParentKey
-      ? aliasMap.get(rawParentKey)
-      : undefined;
+    if (!node.parentId) continue;
+    const rawParentKey = String(node.parentId).trim();
+    if (!rawParentKey || rawParentKey === node.id) continue;
+
+    let resolvedParentId: string | undefined =
+      aliasMap.get(rawParentKey) ??
+      aliasMap.get(rawParentKey.toLowerCase());
+
+    if (!resolvedParentId) {
+      const normParent = normalizeForCategoryMatch(rawParentKey);
+      if (normParent) {
+        resolvedParentId = aliasMap.get(normParent);
+      }
+    }
+
+    // Direct fallback match across all registered nodes
+    if (!resolvedParentId) {
+      const lowerKey = rawParentKey.toLowerCase();
+      const normKey = normalizeForCategoryMatch(rawParentKey);
+      for (const candidate of nodeMap.values()) {
+        if (candidate.id === node.id) continue;
+        if (
+          String(candidate.id).toLowerCase() === lowerKey ||
+          (candidate.categoryId !== undefined &&
+            String(candidate.categoryId).toLowerCase() === lowerKey) ||
+          (candidate.slug && candidate.slug.toLowerCase() === lowerKey) ||
+          (candidate.name && candidate.name.toLowerCase().trim() === lowerKey) ||
+          (normKey && candidate.name && normalizeForCategoryMatch(candidate.name) === normKey) ||
+          (normKey && candidate.slug && normalizeForCategoryMatch(candidate.slug) === normKey)
+        ) {
+          resolvedParentId = candidate.id;
+          break;
+        }
+      }
+    }
 
     if (resolvedParentId && resolvedParentId !== node.id) {
       attachChild(resolvedParentId, node);

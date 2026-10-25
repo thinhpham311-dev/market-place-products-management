@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { Product } from '@/types/product';
+import { isProductPublished } from '@/services/ProductService';
 import { useTranslation } from '@/lib/i18n/useTranslation';
 import { Icons } from '@/components/ui/Icons';
 import { StatusBadge } from '@/components/ui/Badge';
@@ -11,6 +12,7 @@ interface ProductTableViewProps {
   products: Product[];
   selectedIds: string[];
   isAllSelected: boolean;
+  publishingIds?: Record<string, boolean>;
   onSelectAll: (checked: boolean) => void;
   onToggleSelect: (id: string) => void;
   onSelectProduct: (product: Product) => void;
@@ -26,6 +28,7 @@ export const ProductTableView: React.FC<ProductTableViewProps> = ({
   products,
   selectedIds,
   isAllSelected,
+  publishingIds = {},
   onSelectAll,
   onToggleSelect,
   onSelectProduct,
@@ -76,6 +79,7 @@ export const ProductTableView: React.FC<ProductTableViewProps> = ({
               const isLowStock = p.stock <= p.lowStockThreshold && p.stock > 0;
               const isOutOfStock = p.stock === 0;
               const isDraft = p.status === 'draft';
+              const isPublished = isProductPublished(p);
               const translatedName = tp(p.name);
 
               return (
@@ -273,6 +277,8 @@ export const ProductTableView: React.FC<ProductTableViewProps> = ({
                         <Button
                           size="sm"
                           variant="primary"
+                          isLoading={Boolean(publishingIds[p.id])}
+                          disabled={Boolean(publishingIds[p.id])}
                           className="text-xs h-7.5 px-2.5 bg-emerald-600 hover:bg-emerald-700 shadow-none border-transparent"
                           onClick={() => onOpenPublishModal(p)}
                           leftIcon={<Icons.Rocket size={13} />}
@@ -282,7 +288,8 @@ export const ProductTableView: React.FC<ProductTableViewProps> = ({
                       ) : (
                         <button
                           onClick={() => onOpenPublishModal(p)}
-                          className="p-1.5 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 rounded-lg transition-colors cursor-pointer"
+                          disabled={Boolean(publishingIds[p.id])}
+                          className="p-1.5 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 rounded-lg transition-colors cursor-pointer disabled:opacity-50"
                           title={t('table.publish_tooltip')}
                         >
                           <Icons.Rocket size={15} />
@@ -310,13 +317,15 @@ export const ProductTableView: React.FC<ProductTableViewProps> = ({
                       >
                         <Icons.Copy size={16} />
                       </button>
-                      <button
-                        onClick={() => onDeleteProduct(p.id)}
-                        className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg transition-colors cursor-pointer"
-                        title={t('table.delete_product')}
-                      >
-                        <Icons.Trash2 size={16} />
-                      </button>
+                      {!isPublished && (
+                        <button
+                          onClick={() => onDeleteProduct(p.id)}
+                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg transition-colors cursor-pointer"
+                          title={t('table.delete_product')}
+                        >
+                          <Icons.Trash2 size={16} />
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>

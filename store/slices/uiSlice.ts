@@ -2,6 +2,17 @@ import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 import { Product } from '@/types/product';
 import { TabType } from '@/components/dashboard/Sidebar';
 
+export type ToastType = 'success' | 'error' | 'warning';
+
+export interface DashboardApiError {
+  id: string;
+  endpoint: string;
+  label?: string;
+  status: number;
+  message: string;
+  timestamp: string;
+}
+
 interface UIState {
   // Navigation
   activeTab: TabType;
@@ -21,6 +32,10 @@ interface UIState {
 
   // Toast
   toastMessage: string | null;
+  toastType: ToastType;
+
+  // API 500 / Server Errors on Dashboard
+  apiErrors: DashboardApiError[];
 }
 
 const initialState: UIState = {
@@ -39,6 +54,9 @@ const initialState: UIState = {
   publishTargetProduct: null,
 
   toastMessage: null,
+  toastType: 'success',
+
+  apiErrors: [],
 };
 
 const uiSlice = createSlice({
@@ -93,12 +111,62 @@ const uiSlice = createSlice({
       state.isPublishModalOpen = false;
     },
 
-    showToast(state, action: PayloadAction<string>) {
+    showToast(
+      state,
+      action: PayloadAction<string | { message: string; type?: ToastType }>
+    ) {
+      if (typeof action.payload === 'string') {
+        state.toastMessage = action.payload;
+        const lower = action.payload.toLowerCase();
+        if (
+          lower.includes('lỗi') ||
+          lower.includes('error') ||
+          lower.includes('500') ||
+          lower.includes('thất bại')
+        ) {
+          state.toastType = 'error';
+        } else {
+          state.toastType = 'success';
+        }
+      } else {
+        state.toastMessage = action.payload.message;
+        state.toastType = action.payload.type || 'success';
+      }
+    },
+
+    showErrorToast(state, action: PayloadAction<string>) {
       state.toastMessage = action.payload;
+      state.toastType = 'error';
     },
 
     clearToast(state) {
       state.toastMessage = null;
+      state.toastType = 'success';
+    },
+
+    setApiErrors(state, action: PayloadAction<DashboardApiError[]>) {
+      state.apiErrors = action.payload;
+    },
+
+    addApiError(state, action: PayloadAction<DashboardApiError>) {
+      const existingIndex = state.apiErrors.findIndex(
+        (e) => e.endpoint === action.payload.endpoint || e.id === action.payload.id
+      );
+      if (existingIndex !== -1) {
+        state.apiErrors[existingIndex] = action.payload;
+      } else {
+        state.apiErrors.unshift(action.payload);
+      }
+    },
+
+    removeApiError(state, action: PayloadAction<string>) {
+      state.apiErrors = state.apiErrors.filter(
+        (e) => e.id !== action.payload && e.endpoint !== action.payload
+      );
+    },
+
+    clearApiErrors(state) {
+      state.apiErrors = [];
     },
   },
 });
@@ -116,7 +184,12 @@ export const {
   openPublishModal,
   closePublishModal,
   showToast,
+  showErrorToast,
   clearToast,
+  setApiErrors,
+  addApiError,
+  removeApiError,
+  clearApiErrors,
 } = uiSlice.actions;
 
 export default uiSlice.reducer;

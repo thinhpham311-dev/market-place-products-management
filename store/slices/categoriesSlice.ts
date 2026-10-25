@@ -80,7 +80,20 @@ const categoriesSlice = createSlice({
     },
 
     deleteCategory(state, action: PayloadAction<string>) {
-      state.items = state.items.filter((c) => c.id !== action.payload);
+      const targetId = String(action.payload).trim();
+      const filterRecursive = (list: ProductCategory[]): ProductCategory[] => {
+        return list
+          .filter(
+            (c) =>
+              c.id !== targetId &&
+              String(c.categoryId) !== targetId
+          )
+          .map((c) => ({
+            ...c,
+            ...(c.children ? { children: filterRecursive(c.children) } : {}),
+          }));
+      };
+      state.items = filterRecursive(state.items);
     },
 
     toggleCategoryStatus(
@@ -112,10 +125,26 @@ const categoriesSlice = createSlice({
       updateInList(state.items);
     },
 
-    // Sync categories fetched from /v1/api/category/all/list
+    // Sync categories fetched from /v1/api/category/all/list directly from database
     setCategories(state, action: PayloadAction<ProductCategory[]>) {
-      const overrides = state.statusOverrides || {};
-      state.items = applyStatusOverrides(action.payload, overrides);
+      const byKey = new Map<string, ProductCategory>();
+      for (const item of state.items) {
+        byKey.set(String(item.id), item);
+        if (item.categoryId !== undefined) {
+          byKey.set(String(item.categoryId), item);
+        }
+      }
+      for (const item of action.payload) {
+        byKey.set(String(item.id), item);
+        if (item.categoryId !== undefined) {
+          byKey.set(String(item.categoryId), item);
+        }
+      }
+      const uniqueItems = Array.from(
+        new Map(Array.from(byKey.values()).map((c) => [c.id, c])).values()
+      );
+      state.items = uniqueItems;
+      state.statusOverrides = {};
     },
   },
 });

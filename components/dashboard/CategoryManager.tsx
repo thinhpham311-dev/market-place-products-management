@@ -46,16 +46,25 @@ export const CategoryManager: React.FC<CategoryManagerProps> = ({
     [categories]
   );
 
-  const filteredCategories = useMemo(() => {
-    if (activeFilter === 'inactive') return inactiveCategories;
-    if (activeFilter === 'active') return activeCategories;
-    return categories;
-  }, [activeFilter, categories, inactiveCategories, activeCategories]);
+  const categoryTree = useMemo(() => {
+    // Always build tree from all categories so child categories are strictly nested under their parent
+    const fullTree = buildCategoryTree(categories);
+    if (activeFilter === 'all') return fullTree;
 
-  const categoryTree = useMemo(
-    () => buildCategoryTree(filteredCategories),
-    [filteredCategories]
-  );
+    const targetActive = activeFilter === 'active';
+
+    const hasMatchInSubtree = (node: ProductCategory): boolean => {
+      if (Boolean(node.category_active) === targetActive) return true;
+      if (node.children && node.children.length > 0) {
+        return node.children.some(hasMatchInSubtree);
+      }
+      return false;
+    };
+
+    // Filter root categories that match or have matching descendants,
+    // but DO NOT strip or delete child categories! All children remain intact.
+    return fullTree.filter(hasMatchInSubtree);
+  }, [categories, activeFilter]);
 
   const getCategoryStats = useCallback(
     (cat: ProductCategory) => {
