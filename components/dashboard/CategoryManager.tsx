@@ -5,9 +5,12 @@ import { useRouter } from 'next/navigation';
 import { ProductCategory, Product } from '@/types/product';
 import { buildCategoryTree } from '@/services/CategoryService';
 import { useTranslation } from '@/lib/i18n/useTranslation';
+import { useAppSelector } from '@/store/hooks';
 import { Icons } from '@/components/ui/Icons';
 import { Button } from '@/components/ui/Button';
 import { CategoryCard } from './categories/CategoryCard';
+import { BrandManager } from './categories/BrandManager';
+import { canManageCategoryAndBrand } from '@/lib/auth/permissions';
 
 interface CategoryManagerProps {
   categories: ProductCategory[];
@@ -30,6 +33,10 @@ export const CategoryManager: React.FC<CategoryManagerProps> = ({
 }) => {
   const router = useRouter();
   const { t } = useTranslation();
+  const user = useAppSelector((s) => s.auth.user);
+  const canManage = canManageCategoryAndBrand(user);
+
+  const [currentSection, setCurrentSection] = useState<'categories' | 'brands'>('categories');
   const [layoutMode, setLayoutMode] = useState<'tree' | 'grid'>('tree');
   const [activeFilter, setActiveFilter] = useState<'all' | 'inactive' | 'active'>('all');
   const [expandSeed, setExpandSeed] = useState<{ version: number; expanded: boolean }>({
@@ -90,7 +97,14 @@ export const CategoryManager: React.FC<CategoryManagerProps> = ({
       const matchesKeys = (p: Product, keys: Set<string>) => {
         if (p.categoryId && keys.has(String(p.categoryId))) return true;
         if (Array.isArray(p.product_category)) {
-          return p.product_category.some((cid) => keys.has(String(cid)));
+          return p.product_category.some((cid) => {
+            if (typeof cid === 'object' && cid !== null) {
+              const objId = (cid as any).id || (cid as any)._id;
+              return objId ? keys.has(String(objId)) : false;
+            }
+            const s = String(cid).trim();
+            return s && s !== '[object Object]' && keys.has(s);
+          });
         }
         return false;
       };
@@ -127,10 +141,54 @@ export const CategoryManager: React.FC<CategoryManagerProps> = ({
     router.push(`/categories/${cat.id}/edit`);
   };
 
+  if (!canManage) {
+    return null;
+  }
+
   return (
     <div className="space-y-6">
-      {/* Header & Add CTA */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm">
+      {/* Top Tab Navigator between Categories and Brands */}
+      <div className="flex items-center gap-2 border-b border-slate-200/80 dark:border-slate-800 pb-3">
+        <button
+          type="button"
+          onClick={() => setCurrentSection('categories')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+            currentSection === 'categories'
+              ? 'bg-indigo-600 text-white shadow-md shadow-indigo-500/20'
+              : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border border-slate-200/80 dark:border-slate-800'
+          }`}
+        >
+          <Icons.Layers size={15} />
+          <span>Danh mục sản phẩm</span>
+          <span
+            className={`px-2 py-0.5 rounded-full text-[10px] font-mono ${
+              currentSection === 'categories' ? 'bg-white/20 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'
+            }`}
+          >
+            {categories.length}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setCurrentSection('brands')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+            currentSection === 'brands'
+              ? 'bg-indigo-600 text-white shadow-md shadow-indigo-500/20'
+              : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border border-slate-200/80 dark:border-slate-800'
+          }`}
+        >
+          <Icons.Tag size={15} />
+          <span>Thương hiệu (Brands)</span>
+        </button>
+      </div>
+
+      {currentSection === 'brands' ? (
+        <BrandManager products={products} />
+      ) : (
+        <>
+          {/* Header & Add CTA */}
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm">
         <div>
           <div className="flex items-center gap-2.5 flex-wrap">
             <h3 className="text-base font-bold text-slate-900 dark:text-white">
@@ -300,6 +358,8 @@ export const CategoryManager: React.FC<CategoryManagerProps> = ({
             />
           ))}
         </div>
+      )}
+        </>
       )}
     </div>
   );

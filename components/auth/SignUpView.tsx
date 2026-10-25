@@ -17,12 +17,34 @@ import { Button } from '@/components/ui/Button';
 import { AuthSplitLayout } from '@/components/auth/AuthSplitLayout';
 import { useTranslation } from '@/lib/i18n/useTranslation';
 
-type RoleOptionKey = 'owner' | 'warehouse' | 'sales' | 'admin';
+type RoleOptionKey =
+  | 'super_admin'
+  | 'category_manager'
+  | 'catalog_specialist'
+  | 'owner'
+  | 'warehouse'
+  | 'sales'
+  | 'admin';
 
 const ROLE_CONFIG: Record<
   RoleOptionKey,
   { roleTitle: string; authority: string[]; badgeColor: string }
 > = {
+  super_admin: {
+    roleTitle: 'SUPER_ADMIN',
+    authority: ['SUPER_ADMIN', 'admin', 'owner'],
+    badgeColor: 'from-indigo-600 to-violet-600',
+  },
+  category_manager: {
+    roleTitle: 'CATEGORY_MANAGER',
+    authority: ['CATEGORY_MANAGER'],
+    badgeColor: 'from-purple-500 to-pink-600',
+  },
+  catalog_specialist: {
+    roleTitle: 'CATALOG_SPECIALIST',
+    authority: ['CATALOG_SPECIALIST'],
+    badgeColor: 'from-cyan-500 to-blue-600',
+  },
   owner: {
     roleTitle: 'Chủ gian hàng',
     authority: ['admin', 'owner'],
@@ -249,6 +271,9 @@ export const SignUpView: React.FC = () => {
               onChange={(e) => setRoleKey(e.target.value as RoleOptionKey)}
               className="w-full px-3.5 py-2.5 text-sm bg-slate-50 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white outline-none focus:border-indigo-500 focus:bg-white dark:focus:bg-slate-900 transition-all"
             >
+              <option value="super_admin">SUPER_ADMIN (Toàn quyền hệ thống & Danh mục, Thương hiệu)</option>
+              <option value="category_manager">CATEGORY_MANAGER (Quản lý danh mục & thương hiệu)</option>
+              <option value="catalog_specialist">CATALOG_SPECIALIST (Chuyên viên catalog sản phẩm & nhãn hàng)</option>
               <option value="owner">{t('signup.role_owner')}</option>
               <option value="warehouse">{t('signup.role_warehouse')}</option>
               <option value="sales">{t('signup.role_sales')}</option>

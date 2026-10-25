@@ -16,14 +16,21 @@ import {
   apiDeleteCategory,
   apiUpdateCategoryStatus,
 } from '@/services/CategoryService';
+import { AccessDenied } from '@/components/ui/AccessDenied';
+import { useCategoryBrandPermission } from '@/lib/auth/permissions';
 
 export default function EditCategoryPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const dispatch = useAppDispatch();
+  const { canManage } = useCategoryBrandPermission();
 
   const categories = useAppSelector((s) => s.categories.items);
   const category = categories.find((c) => c.id === id);
+
+  if (!canManage) {
+    return <AccessDenied featureName="Chỉnh sửa danh mục" />;
+  }
 
   if (!category) {
     return (

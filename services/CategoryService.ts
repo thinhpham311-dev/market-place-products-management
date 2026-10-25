@@ -287,8 +287,21 @@ export function extractCategoryArray(data: any): Record<string, any>[] | null {
   return findArrayInContainer(data, 0);
 }
 
-function extractIdString(val: unknown): string | null {
+export function extractIdString(val: unknown): string | null {
   if (val === null || val === undefined) return null;
+  if (typeof val === "string") {
+    const trimmed = val.trim();
+    if (
+      !trimmed ||
+      trimmed === "null" ||
+      trimmed === "undefined" ||
+      trimmed === "[object Object]"
+    ) {
+      return null;
+    }
+    return trimmed;
+  }
+  if (typeof val === "number") return String(val);
   if (typeof val === "object") {
     const obj = val as Record<string, any>;
     const nested =
@@ -300,7 +313,7 @@ function extractIdString(val: unknown): string | null {
       obj.value ??
       obj.category_slug ??
       obj.slug;
-    if (nested !== undefined && nested !== null) {
+    if (nested !== undefined && nested !== null && nested !== val) {
       return extractIdString(nested);
     }
     if (
@@ -310,17 +323,46 @@ function extractIdString(val: unknown): string | null {
       const s = String((val as any).toString()).trim();
       if (s && s !== "[object Object]") return s;
     }
-  }
-  const str = String(val).trim();
-  if (
-    !str ||
-    str === "null" ||
-    str === "undefined" ||
-    str === "[object Object]"
-  ) {
     return null;
   }
-  return str;
+  return null;
+}
+
+export function safeExtractString(val: unknown, fallback = ""): string {
+  if (val === null || val === undefined) return fallback;
+  if (typeof val === "string") {
+    const trimmed = val.trim();
+    if (!trimmed || trimmed === "[object Object]") return fallback;
+    return trimmed;
+  }
+  if (typeof val === "number" || typeof val === "boolean") {
+    return String(val);
+  }
+  if (typeof val === "object") {
+    const obj = val as Record<string, any>;
+    const candidate =
+      obj.name ??
+      obj.category_name ??
+      obj.title ??
+      obj.label ??
+      obj.vi ??
+      obj.en ??
+      obj.value ??
+      obj.cat_name ??
+      obj.description ??
+      obj.category_description;
+    if (candidate !== undefined && candidate !== null && candidate !== val) {
+      const extracted = safeExtractString(candidate, "");
+      if (extracted) return extracted;
+    }
+    const idCandidate = obj._id ?? obj.category_id ?? obj.cat_id ?? obj.id;
+    if (idCandidate !== undefined && idCandidate !== null && idCandidate !== val) {
+      const extracted = safeExtractString(idCandidate, "");
+      if (extracted) return extracted;
+    }
+    return fallback;
+  }
+  return fallback;
 }
 
 function normalizeForCategoryMatch(val: unknown): string {
@@ -400,26 +442,27 @@ export function mapRawToCategory(
   pathPrefix = "",
 ): ProductCategory {
   const pathKey = pathPrefix ? `${pathPrefix}-${idx}` : String(idx);
-  const name = String(
-    raw.category_name ||
-      raw.cat_name ||
-      raw.name ||
-      raw.label ||
-      raw.title ||
-      `Danh mục #${idx + 1}`,
-  );
-  const slug = String(
-    raw.category_slug ||
-      raw.cat_slug ||
-      raw.slug ||
-      name
-        .toLowerCase()
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .replace(/đ/g, "d")
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/(^-|-$)/g, ""),
-  );
+  const rawNameCandidate =
+    raw.category_name ??
+    raw.cat_name ??
+    raw.name ??
+    raw.label ??
+    raw.title;
+  const name =
+    safeExtractString(rawNameCandidate, "") || `Danh mục #${idx + 1}`;
+
+  const rawSlugCandidate = raw.category_slug ?? raw.cat_slug ?? raw.slug;
+  const extractedSlug = safeExtractString(rawSlugCandidate, "");
+  const slug =
+    (extractedSlug && extractedSlug !== "object-object" ? extractedSlug : "") ||
+    name
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/đ/g, "d")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/(^-|-$)/g, "") ||
+    `danh-muc-${pathKey}`;
 
   const rawId =
     extractIdString(raw._id) ??
@@ -427,23 +470,29 @@ export function mapRawToCategory(
     extractIdString(raw.cat_id) ??
     extractIdString(raw.id) ??
     extractIdString(raw.value) ??
-    (raw.category_slug || raw.slug ? `${slug}-${pathKey}` : null);
+    (slug ? `${slug}-${pathKey}` : null);
 
   const id =
-    rawId !== null && rawId !== undefined && String(rawId).trim() !== ""
+    rawId !== null &&
+    rawId !== undefined &&
+    String(rawId).trim() !== "" &&
+    String(rawId).trim() !== "[object Object]"
       ? String(rawId).trim()
       : `cat-${pathKey}`;
 
+  const rawCatId = raw.category_id ?? raw.cat_id;
   const categoryId =
-    raw.category_id !== undefined && raw.category_id !== null
-      ? raw.category_id
-      : raw.cat_id !== undefined && raw.cat_id !== null
-        ? raw.cat_id
+    typeof rawCatId === "number"
+      ? rawCatId
+      : typeof rawCatId === "string" &&
+          rawCatId.trim() !== "" &&
+          rawCatId.trim() !== "[object Object]"
+        ? (!Number.isNaN(Number(rawCatId)) ? Number(rawCatId) : rawCatId.trim())
         : undefined;
 
-  const description = String(
-    raw.category_description || raw.cat_description || raw.description || "",
-  );
+  const rawDescCandidate =
+    raw.category_description ?? raw.cat_description ?? raw.description;
+  const description = safeExtractString(rawDescCandidate, "");
   const rawImage =
     raw.category_thumb ||
     raw.category_image ||

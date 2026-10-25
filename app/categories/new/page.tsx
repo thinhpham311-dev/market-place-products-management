@@ -19,10 +19,13 @@ import {
   CategoryFormSubmitData,
   CategoryFormView,
 } from '@/components/dashboard/categories/CategoryFormView';
+import { AccessDenied } from '@/components/ui/AccessDenied';
+import { useCategoryBrandPermission } from '@/lib/auth/permissions';
 
 export default function NewCategoryPage() {
   const router = useRouter();
   const dispatch = useAppDispatch();
+  const { canManage } = useCategoryBrandPermission();
   const categories = useAppSelector((s) => s.categories.items);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -105,6 +108,10 @@ export default function NewCategoryPage() {
       setIsSubmitting(false);
     }
   };
+
+  if (!canManage) {
+    return <AccessDenied featureName="Tạo danh mục mới" />;
+  }
 
   return (
     <CategoryFormView

@@ -52,20 +52,53 @@ function isProductPublishedByOverride(
 }
 
 
+function cleanProdStr(val: unknown, fallback = ''): string {
+  if (val === null || val === undefined) return fallback;
+  if (typeof val === 'object') {
+    const obj = val as Record<string, any>;
+    return String(obj.name || obj.label || obj.title || obj.vi || fallback);
+  }
+  const s = String(val).trim();
+  return s === '[object Object]' ? fallback : s;
+}
+
+function sanitizeProduct(p: Product): Product {
+  const safeName = cleanProdStr(p.name, 'Sản phẩm');
+  const safeCategory = cleanProdStr(p.category, 'Chưa phân loại');
+  const safeCategoryId = cleanProdStr(p.categoryId, 'cat-1');
+  const safeBrand = cleanProdStr(p.brand, 'NovaShop');
+  const safeProductCategory = Array.isArray(p.product_category)
+    ? p.product_category
+        .map((c) => cleanProdStr(c, ''))
+        .filter((c) => Boolean(c && c !== '[object Object]'))
+    : safeCategoryId ? [safeCategoryId] : [];
+
+  return {
+    ...p,
+    name: safeName,
+    category: safeCategory,
+    categoryId: safeCategoryId,
+    brand: safeBrand,
+    product_brand: cleanProdStr(p.product_brand, safeBrand),
+    product_category: safeProductCategory,
+    slug: p.slug === 'object-object' || !p.slug ? p.id : p.slug,
+  };
+}
+
 const productsSlice = createSlice({
   name: 'products',
   initialState,
   reducers: {
     // Create
     addProduct(state, action: PayloadAction<Product>) {
-      state.items.unshift(action.payload);
+      state.items.unshift(sanitizeProduct(action.payload));
     },
 
     // Update
     updateProduct(state, action: PayloadAction<{ id: string; changes: Partial<Product> }>) {
       const index = state.items.findIndex((p) => p.id === action.payload.id);
       if (index !== -1) {
-        state.items[index] = { ...state.items[index], ...action.payload.changes };
+        state.items[index] = sanitizeProduct({ ...state.items[index], ...action.payload.changes });
       }
     },
 
@@ -240,7 +273,7 @@ const productsSlice = createSlice({
     // Sync drafted products fetched from /v1/api/product/spu/drafted/list
     setDraftedProducts(state, action: PayloadAction<Product[]>) {
       const overrides = state.publishedOverrides || {};
-      const adjustedIncoming = action.payload.map((p) =>
+      const adjustedIncoming = action.payload.map(sanitizeProduct).map((p) =>
         isProductPublishedByOverride(p, overrides)
           ? { ...p, status: 'active' as ProductStatus }
           : p
@@ -263,8 +296,9 @@ const productsSlice = createSlice({
 
     // Sync published products fetched from /v1/api/product/spu/published/list
     setPublishedProducts(state, action: PayloadAction<Product[]>) {
+      const sanitizedIncoming = action.payload.map(sanitizeProduct);
       const incomingKeys = new Set<string>();
-      action.payload.forEach((p) => {
+      sanitizedIncoming.forEach((p) => {
         incomingKeys.add(p.id);
         if (p.product_id) incomingKeys.add(p.product_id);
         if (p.spu_id) incomingKeys.add(p.spu_id);
@@ -276,7 +310,7 @@ const productsSlice = createSlice({
           !(p.product_id && incomingKeys.has(p.product_id)) &&
           !(p.spu_id && incomingKeys.has(p.spu_id))
       );
-      state.items = [...action.payload, ...draftItems];
+      state.items = [...sanitizedIncoming, ...draftItems];
     },
   },
 });

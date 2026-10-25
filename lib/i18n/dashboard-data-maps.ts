@@ -122,18 +122,51 @@ const LOG_REASON_MAP: Record<string, Record<SupportedLanguage, string>> = {
   },
 };
 
-export function translateCategoryName(name: string, lang: SupportedLanguage): string {
-  return CATEGORY_NAME_MAP[name]?.[lang] ?? name;
+export function translateCategoryName(name: unknown, lang: SupportedLanguage = 'vi'): string {
+  if (name === null || name === undefined) return '';
+  if (typeof name === 'object') {
+    const obj = name as Record<string, any>;
+    const direct = obj[lang] || obj.vi || obj.name || obj.category_name || obj.title;
+    if (direct && typeof direct === 'string' && direct !== '[object Object]') {
+      return direct;
+    }
+  }
+  const str = String(name).trim();
+  if (!str || str === '[object Object]') return '';
+  return CATEGORY_NAME_MAP[str]?.[lang] ?? str;
 }
 
-export function translateCategoryDesc(desc: string, lang: SupportedLanguage): string {
-  return CATEGORY_DESC_MAP[desc]?.[lang] ?? desc;
+export function translateCategoryDesc(desc: unknown, lang: SupportedLanguage = 'vi'): string {
+  if (desc === null || desc === undefined) return '';
+  if (typeof desc === 'object') {
+    const obj = desc as Record<string, any>;
+    const direct = obj[lang] || obj.vi || obj.description || obj.category_description;
+    if (direct && typeof direct === 'string' && direct !== '[object Object]') {
+      return direct;
+    }
+  }
+  const str = String(desc).trim();
+  if (!str || str === '[object Object]') return '';
+  return CATEGORY_DESC_MAP[str]?.[lang] ?? desc;
 }
 
-export function translateProductName(name: string, lang: SupportedLanguage): string {
-  return PRODUCT_NAME_MAP[name]?.[lang] ?? name;
+export function translateProductName(name: unknown, lang: SupportedLanguage = 'vi'): string {
+  if (name === null || name === undefined) return '';
+  if (typeof name === 'object') {
+    const obj = name as Record<string, any>;
+    const direct = obj[lang] || obj.vi || obj.name || obj.product_name || obj.title;
+    if (direct && typeof direct === 'string' && direct !== '[object Object]') {
+      return direct;
+    }
+  }
+  const str = String(name).trim();
+  if (!str || str === '[object Object]') return '';
+  return PRODUCT_NAME_MAP[str]?.[lang] ?? str;
 }
 
-export function translateLogReason(reason: string, lang: SupportedLanguage): string {
-  return LOG_REASON_MAP[reason]?.[lang] ?? reason;
+export function translateLogReason(reason: unknown, lang: SupportedLanguage = 'vi'): string {
+  if (reason === null || reason === undefined) return '';
+  const str = String(reason).trim();
+  if (!str || str === '[object Object]') return '';
+  return LOG_REASON_MAP[str]?.[lang] ?? str;
 }

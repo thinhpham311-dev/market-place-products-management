@@ -11,11 +11,11 @@ export interface UserState {
 
 export const initialState: UserState = {
   id: "66f1a2b3c4d5e6f7a8b9c0d1",
-  avatar: "AD",
-  userName: "Admin Shop",
+  avatar: "SA",
+  userName: "Super Admin",
   email: "admin@novashop.vn",
-  role: "Chủ gian hàng",
-  authority: ["admin", "owner"],
+  role: "SUPER_ADMIN",
+  authority: ["SUPER_ADMIN", "admin", "owner"],
 };
 
 export const emptyUserState: UserState = {

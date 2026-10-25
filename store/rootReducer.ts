@@ -3,6 +3,7 @@ import auth from "./auth";
 import settings from "./settings";
 import products from "./slices/productsSlice";
 import categories from "./slices/categoriesSlice";
+import brands from "./slices/brandsSlice";
 import ui from "./slices/uiSlice";
 
 const staticReducers = {
@@ -10,6 +11,7 @@ const staticReducers = {
   settings,
   products,
   categories,
+  brands,
   ui,
 };
 

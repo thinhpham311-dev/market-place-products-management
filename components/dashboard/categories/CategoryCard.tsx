@@ -103,7 +103,7 @@ export const CategoryCard: React.FC<CategoryCardProps> = ({
                     level === 0 ? 'text-sm' : 'text-xs'
                   } font-bold text-slate-900 dark:text-white truncate`}
                 >
-                  {tc(category.name)}
+                  {tc(category.name) || category.name || category.id}
                 </h4>
                 <button
                   type="button"

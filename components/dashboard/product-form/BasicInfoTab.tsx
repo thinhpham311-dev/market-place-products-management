@@ -8,6 +8,9 @@ import { Button } from '@/components/ui/Button';
 import { Icons } from '@/components/ui/Icons';
 import { ConfirmDeleteModal } from '@/components/ui/ConfirmDeleteModal';
 import { ProductAttributeSection } from './ProductAttributeSection';
+import { useAppSelector } from '@/store/hooks';
+import { useCategoryBrandPermission } from '@/lib/auth/permissions';
+import { useTranslation } from '@/lib/i18n/useTranslation';
 
 interface BasicInfoTabProps {
   name: string;
@@ -56,12 +59,33 @@ export const BasicInfoTab: React.FC<BasicInfoTabProps> = ({
   productAttributes,
   setProductAttributes,
 }) => {
+  const { t, tc } = useTranslation();
+  const { canManage } = useCategoryBrandPermission();
+  const brands = useAppSelector((s) => s.brands?.items || []);
+
   const [tagInput, setTagInput] = useState('');
   const [pendingDeleteTag, setPendingDeleteTag] = useState<string | null>(null);
   const [categoryItemInput, setCategoryItemInput] = useState('');
 
+  const getCatItemText = (catItem: unknown): string => {
+    if (catItem === null || catItem === undefined) return '';
+    if (typeof catItem === 'object') {
+      const obj = catItem as Record<string, any>;
+      return String(obj.id || obj._id || obj.name || obj.category_name || '');
+    }
+    const s = String(catItem).trim();
+    return s === '[object Object]' ? '' : s;
+  };
+
   const activeCategories = useMemo(
-    () => categories.filter((c) => c.category_active === true),
+    () =>
+      categories.filter(
+        (c) =>
+          c &&
+          c.id &&
+          String(c.id).trim() !== '[object Object]' &&
+          c.category_active === true
+      ),
     [categories]
   );
 
@@ -72,14 +96,21 @@ export const BasicInfoTab: React.FC<BasicInfoTabProps> = ({
 
   const handleAddCategoryItem = () => {
     const trimmed = categoryItemInput.trim();
-    if (trimmed && !productCategoryList.includes(trimmed)) {
+    if (
+      trimmed &&
+      trimmed !== '[object Object]' &&
+      !productCategoryList.some((item) => getCatItemText(item) === trimmed)
+    ) {
       setProductCategoryList([...productCategoryList, trimmed]);
       setCategoryItemInput('');
     }
   };
 
-  const handleRemoveCategoryItem = (catItem: string) => {
-    setProductCategoryList(productCategoryList.filter((item) => item !== catItem));
+  const handleRemoveCategoryItem = (catItem: unknown) => {
+    const targetText = getCatItemText(catItem);
+    setProductCategoryList(
+      productCategoryList.filter((item) => getCatItemText(item) !== targetText)
+    );
   };
 
   const handleAddTag = () => {
@@ -155,7 +186,11 @@ export const BasicInfoTab: React.FC<BasicInfoTabProps> = ({
             onChange={(e) => {
               const selectedId = e.target.value;
               setCategoryId(selectedId);
-              if (selectedId && !productCategoryList.includes(selectedId)) {
+              if (
+                selectedId &&
+                selectedId !== '[object Object]' &&
+                !productCategoryList.some((item) => getCatItemText(item) === selectedId)
+              ) {
                 setProductCategoryList([...productCategoryList, selectedId]);
               }
             }}
@@ -164,27 +199,41 @@ export const BasicInfoTab: React.FC<BasicInfoTabProps> = ({
             {nestedCategories.length === 0 ? (
               <option value="">-- Chưa có danh mục Active --</option>
             ) : (
-              nestedCategories.map(({ category: c, depth }) => (
-                <option key={c.id} value={c.id}>
-                  {depth > 0 ? `${'— '.repeat(depth)}↳ ` : ''}
-                  {c.name} (Active)
-                </option>
-              ))
+              nestedCategories.map(({ category: c, depth }) => {
+                const cId = String(c.id || '').trim();
+                if (!cId || cId === '[object Object]') return null;
+                return (
+                  <option key={cId} value={cId}>
+                    {depth > 0 ? `${'— '.repeat(depth)}↳ ` : ''}
+                    {tc(c.name) || c.name || cId} (Active)
+                  </option>
+                );
+              })
             )}
           </select>
         </div>
 
         <div>
-          <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
-            Thương hiệu / Brand ID (<code className="text-[11px] text-indigo-500">product_brand</code>)
-          </label>
+          <div className="flex items-center justify-between mb-1">
+            <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
+              Thương hiệu / Brand ID (<code className="text-[11px] text-indigo-500">product_brand</code>)
+            </label>
+          </div>
           <input
             type="text"
+            list="brand-suggestions-list"
             value={brand}
             onChange={(e) => setBrand(e.target.value)}
-            placeholder="VD: 131820, NovaWear..."
+            placeholder="VD: 131820, NovaWear, Nike..."
             className="w-full text-sm font-mono bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2 text-slate-900 dark:text-white outline-none focus:border-indigo-500"
           />
+          <datalist id="brand-suggestions-list">
+            {brands.map((b) => (
+              <option key={b.id} value={b.name}>
+                {b.name} ({b.slug})
+              </option>
+            ))}
+          </datalist>
         </div>
       </div>
 
@@ -229,106 +278,123 @@ export const BasicInfoTab: React.FC<BasicInfoTabProps> = ({
                 Thêm
               </Button>
             </div>
+          </div>
+
+          <div>
             <div className="flex flex-wrap items-center gap-1.5">
               {productCategoryList.length === 0 ? (
                 <span className="text-[11px] font-mono text-slate-400">
                   product_category: [] (Mảng rỗng mặc định)
                 </span>
               ) : (
-                productCategoryList.map((catItem) => (
-                  <span
-                    key={catItem}
-                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-mono bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700"
-                  >
-                    &quot;{catItem}&quot;
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveCategoryItem(catItem)}
-                      className="hover:text-rose-500 cursor-pointer"
+                productCategoryList.map((catItem, idx) => {
+                  const displayText = getCatItemText(catItem);
+                  if (!displayText) return null;
+                  return (
+                    <span
+                      key={`${displayText}-${idx}`}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-mono bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700"
                     >
-                      <Icons.X size={12} />
-                    </button>
-                  </span>
-                ))
+                      &quot;{displayText}&quot;
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveCategoryItem(catItem)}
+                        className="hover:text-rose-500 cursor-pointer"
+                        title="Xóa khỏi product_category"
+                      >
+                        <Icons.X size={12} />
+                      </button>
+                    </span>
+                  );
+                })
               )}
             </div>
-            <div className="pt-2">
-              <div className="flex items-center justify-between mb-1.5">
-                <span className="block text-[11px] font-semibold text-slate-600 dark:text-slate-300">
-                  Danh sách Categories Active ({nestedCategories.length}):
-                </span>
+          </div>
+
+          <div className="pt-2">
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="block text-[11px] font-semibold text-slate-600 dark:text-slate-300">
+                Danh sách Categories Active ({nestedCategories.length}):
+              </span>
+              {canManage && (
                 <Link
                   href="/categories"
                   className="text-[11px] font-semibold text-indigo-600 dark:text-indigo-400 hover:underline"
                 >
                   Quản lý Categories →
                 </Link>
-              </div>
-              {nestedCategories.length === 0 ? (
-                <div className="p-3 rounded-xl border border-amber-200 dark:border-amber-800/60 bg-amber-50/60 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300 text-xs flex items-center justify-between gap-2">
-                  <span>Chưa có danh mục nào ở trạng thái Active.</span>
+              )}
+            </div>
+            {nestedCategories.length === 0 ? (
+              <div className="p-3 rounded-xl border border-amber-200 dark:border-amber-800/60 bg-amber-50/60 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300 text-xs flex items-center justify-between gap-2">
+                <span>Chưa có danh mục nào ở trạng thái Active.</span>
+                {canManage && (
                   <Link
                     href="/categories"
                     className="px-2.5 py-1 rounded-lg bg-amber-500 text-white font-semibold text-[11px] shrink-0 hover:bg-amber-600 transition-colors"
                   >
                     Bật Active ngay
                   </Link>
-                </div>
-              ) : (
-                <div className="max-h-52 overflow-y-auto rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-2 space-y-1">
-                  {nestedCategories.map(({ category: cat, depth }) => {
-                    const isAdded = productCategoryList.includes(cat.id);
-                    return (
-                      <div
-                        key={cat.id}
-                        style={{ paddingLeft: `${depth * 16}px` }}
-                        className="flex items-center"
+                )}
+              </div>
+            ) : (
+              <div className="max-h-52 overflow-y-auto rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-2 space-y-1">
+                {nestedCategories.map(({ category: cat, depth }) => {
+                  const catId = String(cat.id || '').trim();
+                  if (!catId || catId === '[object Object]') return null;
+                  const isAdded = productCategoryList.some(
+                    (item) => getCatItemText(item) === catId
+                  );
+                  return (
+                    <div
+                      key={catId}
+                      style={{ paddingLeft: `${depth * 16}px` }}
+                      className="flex items-center"
+                    >
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (isAdded) {
+                            handleRemoveCategoryItem(catId);
+                          } else {
+                            setProductCategoryList([...productCategoryList, catId]);
+                          }
+                        }}
+                        className={`w-full text-left px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-colors cursor-pointer flex items-center justify-between gap-2 ${
+                          isAdded
+                            ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                            : 'bg-slate-50/70 dark:bg-slate-800/60 text-slate-700 dark:text-slate-300 border-slate-200/70 dark:border-slate-700/70 hover:border-indigo-400 hover:bg-indigo-50/40 dark:hover:bg-indigo-950/30'
+                        }`}
                       >
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (isAdded) {
-                              handleRemoveCategoryItem(cat.id);
-                            } else {
-                              setProductCategoryList([...productCategoryList, cat.id]);
-                            }
-                          }}
-                          className={`w-full text-left px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-colors cursor-pointer flex items-center justify-between gap-2 ${
-                            isAdded
-                              ? 'bg-indigo-600 text-white border-indigo-600'
-                              : 'bg-slate-50/70 dark:bg-slate-800/60 text-slate-700 dark:text-slate-300 border-slate-200/70 dark:border-slate-700/70 hover:border-indigo-400'
-                          }`}
-                        >
-                          <div className="flex items-center gap-2 min-w-0">
-                            <span className="truncate font-semibold">
-                              {depth > 0 ? '↳ ' : ''}
-                              {cat.name}
-                            </span>
-                            <span
-                              className={`inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-semibold rounded-full ${
-                                isAdded
-                                  ? 'bg-emerald-500/30 text-white'
-                                  : 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60'
-                              }`}
-                            >
-                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                              Active
-                            </span>
-                          </div>
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="truncate font-semibold">
+                            {depth > 0 ? '↳ ' : ''}
+                            {tc(cat.name) || cat.name || catId}
+                          </span>
                           <span
-                            className={`font-mono text-[10px] shrink-0 ${
-                              isAdded ? 'text-indigo-100 font-bold' : 'text-slate-400'
+                            className={`inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-semibold rounded-full ${
+                              isAdded
+                                ? 'bg-emerald-500/30 text-white'
+                                : 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60'
                             }`}
                           >
-                            {isAdded ? '✓ Đã chọn' : `+ ${cat.id}`}
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                            Active
                           </span>
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
+                        </div>
+                        <span
+                          className={`font-mono text-[10px] shrink-0 ${
+                            isAdded ? 'text-indigo-100 font-bold' : 'text-slate-400'
+                          }`}
+                        >
+                          {isAdded ? '✓ Đã chọn' : `+ ${catId}`}
+                        </span>
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
       </div>

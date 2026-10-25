@@ -15,6 +15,7 @@ import {
   EXAMPLE_CREATE_SPU_PAYLOAD,
   buildCreateSpuPayload,
 } from '@/services/ProductService';
+import { safeExtractString } from '@/services/CategoryService';
 import { Button } from '@/components/ui/Button';
 import { Icons } from '@/components/ui/Icons';
 import { BasicInfoTab } from './product-form/BasicInfoTab';
@@ -119,7 +120,9 @@ export const ProductFormView: React.FC<ProductFormViewProps> = ({
     setName(EXAMPLE_CREATE_SPU_PAYLOAD.product_name);
     setSku(`SPU-${Math.floor(1000 + Math.random() * 9000)}`);
     setBarcode(`893${Math.floor(1000000000 + Math.random() * 9000000000)}`);
-    setCategoryId(categories[0]?.id || '');
+    const firstActive = categories.find((c) => c.category_active === true) || categories[0];
+    const defaultCatId = safeExtractString(firstActive?.id, '');
+    setCategoryId(defaultCatId);
     setBrand(EXAMPLE_CREATE_SPU_PAYLOAD.product_brand);
     setShortDescription('New Jeans Notification 2 - SPU Product');
     setDescription(EXAMPLE_CREATE_SPU_PAYLOAD.product_description);
@@ -138,7 +141,7 @@ export const ProductFormView: React.FC<ProductFormViewProps> = ({
     setWarehouseLocation('KHO-HN-A01');
     setStatus('active');
     setHasVariants(true);
-    setProductCategoryList(EXAMPLE_CREATE_SPU_PAYLOAD.product_category);
+    setProductCategoryList(defaultCatId ? [defaultCatId] : []);
     setProductAttributes(EXAMPLE_CREATE_SPU_PAYLOAD.product_attributes);
     setProductVariations(EXAMPLE_CREATE_SPU_PAYLOAD.product_variations);
     setSkuList(EXAMPLE_CREATE_SPU_PAYLOAD.sku_list);
@@ -179,9 +182,20 @@ export const ProductFormView: React.FC<ProductFormViewProps> = ({
       setStatus(initialData.status || 'active');
       setHasVariants(initialData.hasVariants ?? true);
       setVariantsList(initialData.variants || []);
-      setProductCategoryList(
-        initialData.product_category || EXAMPLE_CREATE_SPU_PAYLOAD.product_category
-      );
+      const rawProductCategory =
+        initialData.product_category || EXAMPLE_CREATE_SPU_PAYLOAD.product_category;
+      const cleanProductCategory = Array.isArray(rawProductCategory)
+        ? rawProductCategory
+            .map((item) => {
+              if (typeof item === 'object' && item !== null) {
+                return (item as any).id || (item as any)._id || (item as any).name || '';
+              }
+              const s = String(item).trim();
+              return s === '[object Object]' ? '' : s;
+            })
+            .filter((s): s is string => Boolean(s && s !== '[object Object]'))
+        : [];
+      setProductCategoryList(cleanProductCategory);
       setProductAttributes(
         initialData.product_attributes || EXAMPLE_CREATE_SPU_PAYLOAD.product_attributes
       );
@@ -225,16 +239,38 @@ export const ProductFormView: React.FC<ProductFormViewProps> = ({
     const selectedCategory = categories.find((c) => c.id === categoryId);
     const finalStatus = targetStatus || status;
 
+    const resolvedName = safeExtractString(name, 'Sản phẩm mới').trim();
+    const resolvedCategory = safeExtractString(selectedCategory?.name, 'Khác');
+    const resolvedCategoryId = safeExtractString(categoryId, 'cat-1');
+    const resolvedBrand = safeExtractString(brand, 'NovaShop');
+
+    const cleanCategoryList = productCategoryList
+      .map((c) => {
+        if (typeof c === 'object' && c !== null) {
+          return (c as any).id || (c as any)._id || (c as any).name || '';
+        }
+        const s = String(c).trim();
+        return s === '[object Object]' ? '' : s;
+      })
+      .filter((s): s is string => Boolean(s && s !== '[object Object]'));
+
+    const finalCategoryList =
+      cleanCategoryList.length > 0
+        ? cleanCategoryList
+        : resolvedCategoryId && resolvedCategoryId !== 'cat-1'
+          ? [resolvedCategoryId]
+          : [];
+
     const productPayload: Partial<Product> = {
       ...(initialData ? { id: initialData.id } : {}),
-      name: name.trim(),
+      name: resolvedName,
       sku: sku || `SKU-${Date.now()}`,
       barcode,
-      category: selectedCategory?.name || 'Khác',
-      categoryId,
-      brand: brand || 'No Brand',
-      shortDescription,
-      description,
+      category: resolvedCategory,
+      categoryId: resolvedCategoryId,
+      brand: resolvedBrand,
+      shortDescription: safeExtractString(shortDescription, ''),
+      description: safeExtractString(description, ''),
       tags,
       thumbnail: thumbnail || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=600&q=80',
       images: images.length > 0 ? images : [thumbnail],
@@ -252,16 +288,16 @@ export const ProductFormView: React.FC<ProductFormViewProps> = ({
       hasVariants,
       variants: hasVariants ? variantsList : undefined,
       variantAttributes: productVariations.map((g) => ({
-        name: g.label,
-        values: g.value.map((v) => v.label),
+        name: safeExtractString(g.label, 'Phân loại'),
+        values: g.value.map((v) => safeExtractString(v.label || v.value, '')),
       })),
-      product_brand: brand || '131820',
-      product_category: productCategoryList,
+      product_brand: resolvedBrand,
+      product_category: finalCategoryList,
       product_attributes: productAttributes,
       product_variations: productVariations,
       sku_list: skuList,
       channels,
-      seoTitle: seoTitle || name,
+      seoTitle: seoTitle || resolvedName,
       seoDescription: seoDescription || shortDescription,
       updatedAt: new Date().toISOString().split('T')[0],
       createdAt: initialData?.createdAt || new Date().toISOString().split('T')[0],
@@ -288,8 +324,11 @@ export const ProductFormView: React.FC<ProductFormViewProps> = ({
         shortDescription,
         price,
         brand,
+        categoryId,
         product_brand: brand,
-        product_category: productCategoryList,
+        product_category: productCategoryList.filter(
+          (c) => Boolean(c && typeof c === 'string' && c !== '[object Object]')
+        ),
         product_attributes: productAttributes,
         product_variations: productVariations,
         sku_list: skuList,
@@ -302,6 +341,7 @@ export const ProductFormView: React.FC<ProductFormViewProps> = ({
       shortDescription,
       price,
       brand,
+      categoryId,
       productCategoryList,
       productAttributes,
       productVariations,

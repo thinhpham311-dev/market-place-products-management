@@ -11,28 +11,55 @@ const initialState: CategoriesState = {
   statusOverrides: {},
 };
 
+function cleanCategory(c: ProductCategory): ProductCategory | null {
+  if (!c || typeof c !== 'object') return null;
+  const idStr = String(c.id || '').trim();
+  if (!idStr || idStr === '[object Object]') return null;
+  const nameStr =
+    typeof c.name === 'object'
+      ? (c.name as any).name || (c.name as any).vi || ''
+      : String(c.name || '').trim();
+  const safeName = nameStr === '[object Object]' ? '' : nameStr;
+  const safeDesc = c.description === '[object Object]' ? '' : c.description;
+  const safeSlug = c.slug === 'object-object' || !c.slug ? idStr : c.slug;
+
+  return {
+    ...c,
+    id: idStr,
+    name: safeName || `Danh mục ${idStr}`,
+    slug: safeSlug,
+    description: safeDesc,
+    children: Array.isArray(c.children)
+      ? (c.children.map(cleanCategory).filter(Boolean) as ProductCategory[])
+      : c.children,
+  };
+}
+
 function applyStatusOverrides(
   list: ProductCategory[],
   overrides: Record<string, boolean>
 ): ProductCategory[] {
-  return list.map((item) => {
-    const overrideVal =
-      overrides[item.id] ??
-      (item.categoryId !== undefined
-        ? overrides[String(item.categoryId)]
-        : undefined);
-    const resolvedActive =
-      overrideVal !== undefined ? overrideVal : item.category_active;
-    const children =
-      item.children && item.children.length > 0
-        ? applyStatusOverrides(item.children, overrides)
-        : item.children;
-    return {
-      ...item,
-      category_active: resolvedActive,
-      ...(children ? { children } : {}),
-    };
-  });
+  return list
+    .map(cleanCategory)
+    .filter((item): item is ProductCategory => item !== null)
+    .map((item) => {
+      const overrideVal =
+        overrides[item.id] ??
+        (item.categoryId !== undefined
+          ? overrides[String(item.categoryId)]
+          : undefined);
+      const resolvedActive =
+        overrideVal !== undefined ? overrideVal : item.category_active;
+      const children =
+        item.children && item.children.length > 0
+          ? applyStatusOverrides(item.children, overrides)
+          : item.children;
+      return {
+        ...item,
+        category_active: resolvedActive,
+        ...(children ? { children } : {}),
+      };
+    });
 }
 
 const categoriesSlice = createSlice({
@@ -48,34 +75,38 @@ const categoriesSlice = createSlice({
         }
       >
     ) {
-      const resolvedId = action.payload.id || `cat-${Date.now()}`;
-      const newCat: ProductCategory = {
+      const resolvedId = String(action.payload.id || '').trim() || `cat-${Date.now()}`;
+      if (resolvedId === '[object Object]') return;
+      const cleaned = cleanCategory({
         ...action.payload,
         id: resolvedId,
         productCount: action.payload.productCount ?? 0,
-      };
+      });
+      if (!cleaned) return;
       const existingIndex = state.items.findIndex((c) => c.id === resolvedId);
       if (existingIndex !== -1) {
-        state.items[existingIndex] = newCat;
+        state.items[existingIndex] = cleaned;
       } else {
-        state.items.unshift(newCat);
+        state.items.unshift(cleaned);
       }
     },
 
     updateCategory(state, action: PayloadAction<ProductCategory>) {
+      const cleaned = cleanCategory(action.payload);
+      if (!cleaned) return;
       if (!state.statusOverrides) {
         state.statusOverrides = {};
       }
-      if (action.payload.category_active !== undefined) {
-        state.statusOverrides[action.payload.id] = action.payload.category_active;
-        if (action.payload.categoryId !== undefined) {
-          state.statusOverrides[String(action.payload.categoryId)] =
-            action.payload.category_active;
+      if (cleaned.category_active !== undefined) {
+        state.statusOverrides[cleaned.id] = cleaned.category_active;
+        if (cleaned.categoryId !== undefined) {
+          state.statusOverrides[String(cleaned.categoryId)] =
+            cleaned.category_active;
         }
       }
-      const index = state.items.findIndex((c) => c.id === action.payload.id);
+      const index = state.items.findIndex((c) => c.id === cleaned.id);
       if (index !== -1) {
-        state.items[index] = action.payload;
+        state.items[index] = cleaned;
       }
     },
 
@@ -128,13 +159,17 @@ const categoriesSlice = createSlice({
     // Sync categories fetched from /v1/api/category/all/list directly from database
     setCategories(state, action: PayloadAction<ProductCategory[]>) {
       const byKey = new Map<string, ProductCategory>();
-      for (const item of state.items) {
+      for (const rawItem of state.items) {
+        const item = cleanCategory(rawItem);
+        if (!item) continue;
         byKey.set(String(item.id), item);
         if (item.categoryId !== undefined) {
           byKey.set(String(item.categoryId), item);
         }
       }
-      for (const item of action.payload) {
+      for (const rawItem of action.payload) {
+        const item = cleanCategory(rawItem);
+        if (!item) continue;
         byKey.set(String(item.id), item);
         if (item.categoryId !== undefined) {
           byKey.set(String(item.categoryId), item);

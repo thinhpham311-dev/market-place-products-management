@@ -18,6 +18,16 @@ export interface AttributePreset {
   values: Array<{ value_id: number; name: string }>;
 }
 
+const safeAttrText = (val: unknown, fallback = ''): string => {
+  if (val === null || val === undefined) return fallback;
+  if (typeof val === 'object') {
+    const obj = val as Record<string, any>;
+    return String(obj.name || obj.label || obj.vi || obj.value || fallback);
+  }
+  const s = String(val).trim();
+  return s === '[object Object]' ? fallback : s;
+};
+
 export const ATTRIBUTE_PRESETS: AttributePreset[] = [
   {
     id: 'material',
@@ -489,7 +499,7 @@ export const ProductAttributeSection: React.FC<ProductAttributeSectionProps> = (
                 <div className="flex flex-wrap items-center justify-between gap-2 mb-2.5">
                   <div className="flex items-center gap-2">
                     <span className="font-semibold text-xs sm:text-sm text-slate-900 dark:text-white">
-                      {attr.name}
+                      {safeAttrText(attr.name, `Thuộc tính #${attr.attribute_id}`)}
                     </span>
                     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-mono text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
                       ID: {attr.attribute_id}
@@ -550,7 +560,7 @@ export const ProductAttributeSection: React.FC<ProductAttributeSectionProps> = (
                           </span>
                           {v.name && (
                             <span className="font-sans text-slate-700 dark:text-slate-300 font-medium">
-                              : {v.name}
+                              : {safeAttrText(v.name)}
                             </span>
                           )}
                           <button
@@ -815,7 +825,7 @@ export const ProductAttributeSection: React.FC<ProductAttributeSectionProps> = (
                     className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-mono bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800"
                   >
                     <span className="font-bold">#{val.value_id}</span>
-                    {val.name && <span className="font-sans font-medium text-slate-700 dark:text-slate-300">: {val.name}</span>}
+                    {val.name && <span className="font-sans font-medium text-slate-700 dark:text-slate-300">: {safeAttrText(val.name)}</span>}
                     <button
                       type="button"
                       onClick={() => handleRemoveValueFromModal(val.value_id)}

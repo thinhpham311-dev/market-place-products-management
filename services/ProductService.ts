@@ -6,6 +6,7 @@ import {
   SpuSkuItem,
   SpuVariationGroup,
 } from "@/types/product";
+import { safeExtractString, extractIdString } from "./CategoryService";
 import {
   NEXT_PUBLIC_API_KEY,
   REQUEST_HEADER_API_KEY,
@@ -154,12 +155,27 @@ export function buildCreateSpuPayload(product: Partial<Product>): CreateSpuPaylo
 
   const product_variations: SpuVariationGroup[] =
     Array.isArray(product.product_variations) && product.product_variations.length > 0
-      ? product.product_variations
+      ? product.product_variations.map((g) => ({
+          label: safeExtractString(g.label, "Tier"),
+          value: Array.isArray(g.value)
+            ? g.value.map((opt) => ({
+                label: safeExtractString(opt.label, ""),
+                value: safeExtractString(opt.value, ""),
+                image: safeExtractString(opt.image, DEFAULT_SPU_VARIATION_IMAGE),
+              }))
+            : [],
+        }))
       : EXAMPLE_CREATE_SPU_PAYLOAD.product_variations;
 
   const sku_list: SpuSkuItem[] =
     Array.isArray(product.sku_list) && product.sku_list.length > 0
-      ? product.sku_list
+      ? product.sku_list.map((item) => ({
+          sku_tier_idx: Array.isArray(item.sku_tier_idx)
+            ? item.sku_tier_idx.map((n) => Number(n) || 0)
+            : [0],
+          sku_price: Number(item.sku_price) || 0,
+          sku_stock: Number(item.sku_stock) || 0,
+        }))
       : generateCartesianSkuList(product_variations, price || 50, stock || 10);
 
   let product_attributes: SpuProductAttributes = {
@@ -177,10 +193,10 @@ export function buildCreateSpuPayload(product: Partial<Product>): CreateSpuPaylo
         attribute_id: Number(product.product_attributes.attribute_id),
         attribute_value: product.product_attributes.attribute_value.map((v) => ({
           value_id: Number(v.value_id),
-          ...(v.name ? { name: String(v.name) } : {}),
+          ...(v.name ? { name: safeExtractString(v.name, "") } : {}),
         })),
         ...(product.product_attributes.name
-          ? { name: String(product.product_attributes.name) }
+          ? { name: safeExtractString(product.product_attributes.name, "") }
           : {}),
         ...(Array.isArray(product.product_attributes.items)
           ? { items: product.product_attributes.items }
@@ -193,11 +209,11 @@ export function buildCreateSpuPayload(product: Partial<Product>): CreateSpuPaylo
       const first = product.product_attributes.items[0];
       product_attributes = {
         attribute_id: Number(first.attribute_id) || 200000,
-        ...(first.name ? { name: String(first.name) } : {}),
+        ...(first.name ? { name: safeExtractString(first.name, "") } : {}),
         attribute_value: Array.isArray(first.attribute_value)
           ? first.attribute_value.map((v) => ({
               value_id: Number(v.value_id),
-              ...(v.name ? { name: String(v.name) } : {}),
+              ...(v.name ? { name: safeExtractString(v.name, "") } : {}),
             }))
           : [{ value_id: 1 }],
         items: product.product_attributes.items,
@@ -205,20 +221,57 @@ export function buildCreateSpuPayload(product: Partial<Product>): CreateSpuPaylo
     }
   }
 
-  const product_category: string[] = Array.isArray(product.product_category)
+  const rawCatList = Array.isArray(product.product_category)
     ? product.product_category
-    : [];
+    : product.categoryId
+      ? [product.categoryId]
+      : [];
+  const product_category: string[] = rawCatList
+    .map((item) => {
+      if (item === null || item === undefined) return "";
+      if (typeof item === "object") {
+        return (
+          extractIdString(item) ||
+          safeExtractString((item as any).name || (item as any).category_name, "")
+        );
+      }
+      const s = String(item).trim();
+      return s === "[object Object]" ? "" : s;
+    })
+    .filter((s): s is string => Boolean(s && s !== "[object Object]"));
+
+  const product_name =
+    safeExtractString(product.name, "Sản phẩm SPU mới").trim() ||
+    "Sản phẩm SPU mới";
+  const product_thumb =
+    safeExtractString(product.thumbnail, "product_thumb").trim() ||
+    "product_thumb";
+  const product_description = (
+    safeExtractString(
+      product.description || product.shortDescription,
+      "",
+    ) || `<p>${product_name}</p>`
+  ).trim();
+
+  const rawBrand = product.product_brand ?? product.brand ?? "131820";
+  const product_brand = (
+    typeof rawBrand === "object" && rawBrand !== null
+      ? safeExtractString(
+          (rawBrand as any).name ||
+            (rawBrand as any)._id ||
+            (rawBrand as any).id ||
+            (rawBrand as any).brand_name,
+          "131820",
+        )
+      : safeExtractString(rawBrand, "131820")
+  ).trim() || "131820";
 
   return {
-    product_name: (product.name || "").trim(),
-    product_thumb: (product.thumbnail || "product_thumb").trim(),
-    product_description: (
-      product.description ||
-      product.shortDescription ||
-      `<p>${(product.name || "").trim()}</p>`
-    ).trim(),
+    product_name,
+    product_thumb,
+    product_description,
     product_price: price,
-    product_brand: String(product.product_brand || product.brand || "131820").trim(),
+    product_brand,
     product_category,
     product_attributes,
     product_variations,
@@ -445,21 +498,82 @@ export function mapSpuToProduct(
     (Array.isArray(spu.images) ? spu.images[0] : undefined);
   const thumb = resolveThumbnail(rawThumbCandidate);
 
-  const rawCategory =
+  const rawCategoryCandidate =
     spu.product_category ||
     spu.spu_category ||
     spu.product_type ||
     spu.category ||
     "Chưa phân loại";
-  const categoryName = Array.isArray(rawCategory)
-    ? String(rawCategory[0] || "Chưa phân loại")
-    : typeof rawCategory === "object" && rawCategory !== null
-      ? String(
-          (rawCategory as Record<string, any>).name ||
-            (rawCategory as Record<string, any>)._id ||
-            "Chưa phân loại",
+
+  let categoryName = "Chưa phân loại";
+  if (Array.isArray(rawCategoryCandidate) && rawCategoryCandidate.length > 0) {
+    const first = rawCategoryCandidate[0];
+    if (typeof first === "object" && first !== null) {
+      categoryName = safeExtractString(
+        first.name || first.category_name || first.title || first.label || first._id,
+        "Chưa phân loại",
+      );
+    } else {
+      categoryName = safeExtractString(first, "Chưa phân loại");
+    }
+  } else if (typeof rawCategoryCandidate === "object" && rawCategoryCandidate !== null) {
+    categoryName = safeExtractString(
+      rawCategoryCandidate.name ||
+        rawCategoryCandidate.category_name ||
+        rawCategoryCandidate.title ||
+        rawCategoryCandidate.label ||
+        rawCategoryCandidate._id,
+      "Chưa phân loại",
+    );
+  } else {
+    categoryName = safeExtractString(rawCategoryCandidate, "Chưa phân loại");
+  }
+  if (!categoryName || categoryName === "[object Object]") {
+    categoryName = "Chưa phân loại";
+  }
+
+  const rawCategoryId = spu.categoryId ?? spu.category_id;
+  const extractedCategoryId = extractIdString(rawCategoryId);
+  const categoryId =
+    extractedCategoryId ||
+    extractIdString(rawCategoryCandidate) ||
+    categoryName;
+
+  const rawCatArray = Array.isArray(spu.product_category)
+    ? spu.product_category
+    : Array.isArray(rawCategoryCandidate)
+      ? rawCategoryCandidate
+      : [categoryName];
+  const sanitizedProductCategory: string[] = rawCatArray
+    .map((item: any) => {
+      if (item === null || item === undefined) return "";
+      if (typeof item === "object") {
+        return (
+          extractIdString(item) ||
+          safeExtractString(item.name || item.category_name || item.title, "")
+        );
+      }
+      const str = String(item).trim();
+      return str === "[object Object]" ? "" : str;
+    })
+    .filter((s): s is string => Boolean(s && s !== "[object Object]"));
+
+  const rawVariations = spu.product_variations || spu.spu_variations || [];
+  const rawAttributes = spu.product_attributes || spu.spu_attributes || {};
+
+  const rawBrand =
+    spu.product_brand ||
+    rawAttributes?.brand ||
+    rawAttributes?.manufacturer ||
+    spu.brand ||
+    "NovaShop";
+  const brandName =
+    typeof rawBrand === "object" && rawBrand !== null
+      ? safeExtractString(
+          rawBrand.name || rawBrand.brand_name || rawBrand.title || rawBrand._id,
+          "NovaShop",
         )
-      : String(rawCategory);
+      : safeExtractString(rawBrand, "NovaShop");
 
   const createdAt = spu.createdAt
     ? String(spu.createdAt).split("T")[0]
@@ -467,9 +581,6 @@ export function mapSpuToProduct(
   const updatedAt = spu.updatedAt
     ? String(spu.updatedAt).split("T")[0]
     : createdAt;
-
-  const rawVariations = spu.product_variations || spu.spu_variations || [];
-  const rawAttributes = spu.product_attributes || spu.spu_attributes || {};
 
   return {
     id,
@@ -480,26 +591,24 @@ export function mapSpuToProduct(
         spu.sku ||
         `SPU-${id.slice(-6).toUpperCase()}`,
     ),
-    name,
-    slug,
-    description: String(
+    name: safeExtractString(name, `Sản phẩm #${idx + 1}`),
+    slug: safeExtractString(slug, id),
+    description: safeExtractString(
       spu.product_description || spu.spu_description || spu.description || "",
+      "",
     ),
-    shortDescription: String(
+    shortDescription: safeExtractString(
       spu.product_description ||
         spu.spu_description ||
         spu.shortDescription ||
         "",
+      "",
     ),
     category: categoryName,
-    categoryId: String(spu.categoryId || categoryName),
-    brand: String(
-      spu.product_brand ||
-        rawAttributes?.brand ||
-        rawAttributes?.manufacturer ||
-        spu.brand ||
-        "NovaShop",
-    ),
+    categoryId: String(categoryId || categoryName),
+    brand: brandName,
+    product_brand: brandName,
+    product_category: sanitizedProductCategory,
     tags: Array.isArray(spu.tags)
       ? spu.tags
       : resolvedStatus === "active"

@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { addProduct } from '@/store/slices/productsSlice';
 import { setCategories } from '@/store/slices/categoriesSlice';
-import { setActiveTab, showToast } from '@/store/slices/uiSlice';
+import { setActiveTab, showToast, showErrorToast } from '@/store/slices/uiSlice';
+import { getApiErrorMessage } from '@/lib/http/handleAxiosError';
 import {
   apiCreateSpu,
   buildCreateSpuPayload,
@@ -16,6 +17,7 @@ import {
   apiGetCategoryAllList,
   extractCategoryArray,
   mapRawCategoryList,
+  safeExtractString,
 } from '@/services/CategoryService';
 import { Product } from '@/types/product';
 import { ProductFormView } from '@/components/dashboard/ProductFormView';
@@ -56,18 +58,31 @@ export default function NewProductPage() {
         ? mapSpuToProduct(rawCreatedSpu, 0, targetStatus)
         : null;
 
+      const resolvedName =
+        safeExtractString(mappedFromApi?.name || productData.name, 'Sản phẩm mới').trim() ||
+        'Sản phẩm mới';
+      const resolvedCategory =
+        safeExtractString(productData.category || mappedFromApi?.category, 'Chưa phân loại').trim() ||
+        'Chưa phân loại';
+      const resolvedCategoryId =
+        safeExtractString(productData.categoryId || mappedFromApi?.categoryId, 'cat-1').trim() ||
+        'cat-1';
+      const resolvedBrand =
+        safeExtractString(productData.brand || mappedFromApi?.brand, 'NovaShop').trim() ||
+        'NovaShop';
+
       const newProduct: Product = {
         ...(productData as Product),
         ...(mappedFromApi || {}),
         id: mappedFromApi?.id || `prod-${Date.now()}`,
-        name: mappedFromApi?.name || productData.name || 'Sản phẩm mới',
+        name: resolvedName,
         price: mappedFromApi?.price ?? Number(productData.price ?? 0),
         originalPrice: productData.originalPrice,
         costPrice: productData.costPrice ?? mappedFromApi?.costPrice ?? 0,
         stock: mappedFromApi?.stock ?? Number(productData.stock ?? 0),
-        category: productData.category || mappedFromApi?.category || 'Khác',
-        categoryId: productData.categoryId || mappedFromApi?.categoryId || 'cat-1',
-        brand: productData.brand || mappedFromApi?.brand || 'NovaShop',
+        category: resolvedCategory,
+        categoryId: resolvedCategoryId,
+        brand: resolvedBrand,
         status: targetStatus,
         channels: productData.channels || mappedFromApi?.channels || ['website'],
         tags: productData.tags || mappedFromApi?.tags || [],
@@ -80,13 +95,13 @@ export default function NewProductPage() {
       if (newProduct.status === 'active') {
         dispatch(
           showToast(
-            `Đã tạo sản phẩm "${newProduct.name}" thành công (/v1/api/product/spu/create)!`
+            `Đã tạo sản phẩm "${resolvedName}" thành công (/v1/api/product/spu/create)!`
           )
         );
       } else {
         dispatch(
           showToast(
-            `Đã lưu bản nháp "${newProduct.name}" thành công (/v1/api/product/spu/create)!`
+            `Đã lưu bản nháp "${resolvedName}" thành công (/v1/api/product/spu/create)!`
           )
         );
       }
@@ -96,10 +111,11 @@ export default function NewProductPage() {
         newProduct.status === 'draft' ? '/products?tab=draft' : '/products?tab=all'
       );
     } catch (err: unknown) {
-      const errMessage =
-        (err as { message?: string })?.message ||
-        'Không thể tạo sản phẩm qua API (/v1/api/product/spu/create). Vui lòng thử lại.';
-      dispatch(showToast(errMessage));
+      const errMessage = getApiErrorMessage(
+        err,
+        'Không thể tạo sản phẩm qua API (/v1/api/product/spu/create). Vui lòng thử lại.'
+      );
+      dispatch(showErrorToast(errMessage));
       throw err;
     } finally {
       setIsSubmitting(false);

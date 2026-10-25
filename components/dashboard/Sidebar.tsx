@@ -8,6 +8,7 @@ import { useTranslation } from '@/lib/i18n/useTranslation';
 import { Icons } from '@/components/ui/Icons';
 import { SIDEBAR_THEMES } from './sidebar/sidebarThemes';
 import { SidebarBranchCard, SidebarFooterWidgets } from './sidebar/SidebarWidgets';
+import { canManageCategoryAndBrand } from '@/lib/auth/permissions';
 
 export type TabType = 'overview' | 'products' | 'inventory' | 'categories' | 'analytics' | 'settings';
 
@@ -47,12 +48,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const dispatch = useAppDispatch();
   const { t } = useTranslation();
+  const user = useAppSelector((s) => s.auth.user);
+  const canManageCategoryBrand = canManageCategoryAndBrand(user);
+
   const sidebarTheme: SidebarTheme = useAppSelector(
     (s) => s.settings?.theme?.sidebarTheme ?? 'adaptive'
   );
   const styles = SIDEBAR_THEMES[sidebarTheme] || SIDEBAR_THEMES.adaptive;
 
-  const navItems: {
+  const rawNavItems: {
     id: TabType;
     href: string;
     label: string;
@@ -74,6 +78,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'analytics', href: TAB_ROUTES.analytics, label: t('nav.analytics'), icon: Icons.BarChart3, badge: t('nav.badge_new'), badgeVariant: 'primary' },
     { id: 'settings', href: TAB_ROUTES.settings, label: t('nav.settings'), icon: Icons.Settings, badge: null },
   ];
+
+  const navItems = rawNavItems.filter((item) => {
+    if (item.id === 'categories' && !canManageCategoryBrand) {
+      return false;
+    }
+    return true;
+  });
 
   const handleSelectTab = (id: TabType) => {
     setActiveTab(id);

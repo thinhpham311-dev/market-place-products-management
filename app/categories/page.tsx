@@ -20,12 +20,15 @@ import { useHydrated } from '@/store/StoreProvider';
 import { ProductCategory } from '@/types/product';
 import { CategoryManager } from '@/components/dashboard/CategoryManager';
 import { ConfirmDeleteModal } from '@/components/ui/ConfirmDeleteModal';
+import { AccessDenied } from '@/components/ui/AccessDenied';
 import { useTranslation } from '@/lib/i18n/useTranslation';
+import { useCategoryBrandPermission } from '@/lib/auth/permissions';
 
 export default function CategoriesPage() {
   const dispatch = useAppDispatch();
   const isHydrated = useHydrated();
   const { tc, tcd } = useTranslation();
+  const { canManage } = useCategoryBrandPermission();
   const categories = useAppSelector((s) => s.categories.items);
   const products = useAppSelector((s) => s.products.items);
   const signedIn = useAppSelector((s) => s.auth.session.signedIn);
@@ -67,7 +70,7 @@ export default function CategoriesPage() {
   const handleConfirmDeleteCategory = async () => {
     if (!targetCategory || isDeletingCategory) return;
     const catId = targetCategory.id;
-    const catName = tc(targetCategory.name);
+    const catName = tc(targetCategory.name) || targetCategory.name || catId;
     const primaryId =
       targetCategory.categoryId !== undefined && targetCategory.categoryId !== null
         ? String(targetCategory.categoryId).trim()
@@ -149,6 +152,10 @@ export default function CategoriesPage() {
     }
   };
 
+  if (!canManage) {
+    return <AccessDenied featureName="Danh mục & Thương hiệu" />;
+  }
+
   return (
     <div className="space-y-6 animate-fade-in">
       <CategoryManager
@@ -166,7 +173,7 @@ export default function CategoriesPage() {
         isLoading={isDeletingCategory}
         title="Xác nhận xóa danh mục"
         message="Bạn có chắc chắn muốn xóa danh mục này khỏi hệ thống? Các sản phẩm thuộc danh mục này sẽ cần được phân loại lại."
-        itemName={targetCategory ? tc(targetCategory.name) : ''}
+        itemName={targetCategory ? (tc(targetCategory.name) || targetCategory.name || targetCategory.id) : ''}
         itemSubtitle={
           targetCategory
             ? `/${targetCategory.slug} • ${tcd(targetCategory.description || '')}`

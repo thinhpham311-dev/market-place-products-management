@@ -30,8 +30,18 @@ interface VariantsTabProps {
   stock: number;
 }
 
+function safeStr(val: unknown, fallback = ''): string {
+  if (val === null || val === undefined) return fallback;
+  if (typeof val === 'object') {
+    const obj = val as Record<string, any>;
+    return String(obj.label || obj.name || obj.value || obj.vi || fallback);
+  }
+  const s = String(val).trim();
+  return s === '[object Object]' ? fallback : s;
+}
+
 function slugifyOptionValue(label: string): string {
-  return label
+  return safeStr(label)
     .trim()
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
@@ -215,10 +225,10 @@ export const VariantsTab: React.FC<VariantsTabProps> = ({
 
   const getCombinationLabel = (tierIdx: number[]): string => {
     return tierIdx
-      .map(
-        (optIdx, groupIdx) =>
-          productVariations[groupIdx]?.value[optIdx]?.label ?? `#${optIdx}`
-      )
+      .map((optIdx, groupIdx) => {
+        const rawLabel = productVariations[groupIdx]?.value[optIdx]?.label;
+        return safeStr(rawLabel, `#${optIdx}`);
+      })
       .join(' / ');
   };
 

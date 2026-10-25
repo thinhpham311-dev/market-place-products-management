@@ -66,6 +66,16 @@ export interface ProductCategory {
   children?: ProductCategory[];
 }
 
+export interface ProductBrand {
+  id: string;
+  name: string;
+  slug: string;
+  description?: string;
+  logo?: string;
+  brand_active?: boolean;
+  productCount?: number;
+}
+
 export interface Product {
   id: string;
   product_id?: string;

@@ -38,12 +38,22 @@ export const CategoryFormView: React.FC<CategoryFormViewProps> = ({
   const isEditing = Boolean(initialData);
   const queryParentId = searchParams.get('parentId') || '';
 
-  const [name, setName] = useState(initialData?.name || '');
-  const [slug, setSlug] = useState(initialData?.slug || '');
-  const [description, setDescription] = useState(initialData?.description || '');
-  const [image, setImage] = useState(initialData?.image || '');
+  const cleanStr = (val?: unknown): string => {
+    if (!val) return '';
+    if (typeof val === 'object') {
+      const obj = val as Record<string, any>;
+      return String(obj.name || obj.category_name || obj.title || obj.vi || '');
+    }
+    const s = String(val).trim();
+    return s === '[object Object]' ? '' : s;
+  };
+
+  const [name, setName] = useState(cleanStr(initialData?.name));
+  const [slug, setSlug] = useState(cleanStr(initialData?.slug));
+  const [description, setDescription] = useState(cleanStr(initialData?.description));
+  const [image, setImage] = useState(cleanStr(initialData?.image));
   const [parentId, setParentId] = useState<string>(
-    initialData?.parentId || queryParentId
+    cleanStr(initialData?.parentId) || queryParentId
   );
   const [categoryActive, setCategoryActive] = useState<boolean>(
     initialData ? (initialData.category_active ?? false) : true
@@ -64,11 +74,11 @@ export const CategoryFormView: React.FC<CategoryFormViewProps> = ({
   // Sync state if initialData is loaded/changed dynamically
   useEffect(() => {
     if (initialData) {
-      setName(initialData.name || '');
-      setSlug(initialData.slug || '');
-      setDescription(initialData.description || '');
-      setImage(initialData.image || '');
-      setParentId(initialData.parentId || '');
+      setName(cleanStr(initialData.name));
+      setSlug(cleanStr(initialData.slug));
+      setDescription(cleanStr(initialData.description));
+      setImage(cleanStr(initialData.image));
+      setParentId(cleanStr(initialData.parentId));
       setCategoryActive(initialData.category_active ?? false);
     }
   }, [initialData]);
