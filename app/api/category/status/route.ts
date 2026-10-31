@@ -134,6 +134,21 @@ export async function POST(req: Request): Promise<Response> {
     for (const attempt of candidateRequests) {
       try {
         const { data } = await attempt();
+        if (data && typeof data === "object") {
+          const resp = { ...(data as Record<string, unknown>) };
+          if (resp.metadata && typeof resp.metadata === "object") {
+            const meta = resp.metadata as Record<string, unknown>;
+            if (meta.category && typeof meta.category === "object") {
+              meta.category = {
+                ...(meta.category as Record<string, unknown>),
+                category_active: categoryActive,
+              };
+            } else {
+              meta.category_active = categoryActive;
+            }
+          }
+          return NextResponse.json(resp);
+        }
         return NextResponse.json(data);
       } catch (err: unknown) {
         const status = (err as { response?: { status?: number } })?.response

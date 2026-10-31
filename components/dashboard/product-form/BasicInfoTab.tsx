@@ -34,6 +34,7 @@ interface BasicInfoTabProps {
   setProductCategoryList: (v: string[]) => void;
   productAttributes: SpuProductAttributes;
   setProductAttributes: (v: SpuProductAttributes) => void;
+  isEdit?: boolean;
 }
 
 export const BasicInfoTab: React.FC<BasicInfoTabProps> = ({
@@ -58,6 +59,7 @@ export const BasicInfoTab: React.FC<BasicInfoTabProps> = ({
   setProductCategoryList,
   productAttributes,
   setProductAttributes,
+  isEdit = false,
 }) => {
   const { t, tc } = useTranslation();
   const { canManage } = useCategoryBrandPermission();
@@ -170,48 +172,50 @@ export const BasicInfoTab: React.FC<BasicInfoTabProps> = ({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div>
-          <div className="flex items-center justify-between mb-1">
-            <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
-              Danh mục chính (Active)
-            </label>
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-              {nestedCategories.length} Active
-            </span>
+      <div className={`grid grid-cols-1 ${isEdit ? '' : 'sm:grid-cols-2'} gap-4`}>
+        {!isEdit && (
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
+                Danh mục chính (Active)
+              </label>
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                {nestedCategories.length} Active
+              </span>
+            </div>
+            <select
+              value={categoryId}
+              onChange={(e) => {
+                const selectedId = e.target.value;
+                setCategoryId(selectedId);
+                if (
+                  selectedId &&
+                  selectedId !== '[object Object]' &&
+                  !productCategoryList.some((item) => getCatItemText(item) === selectedId)
+                ) {
+                  setProductCategoryList([...productCategoryList, selectedId]);
+                }
+              }}
+              className="w-full text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2 text-slate-900 dark:text-white outline-none focus:border-indigo-500"
+            >
+              {nestedCategories.length === 0 ? (
+                <option value="">-- Chưa có danh mục Active --</option>
+              ) : (
+                nestedCategories.map(({ category: c, depth }) => {
+                  const cId = String(c.id || '').trim();
+                  if (!cId || cId === '[object Object]') return null;
+                  return (
+                    <option key={cId} value={cId}>
+                      {depth > 0 ? `${'— '.repeat(depth)}↳ ` : ''}
+                      {tc(c.name) || c.name || cId} (Active)
+                    </option>
+                  );
+                })
+              )}
+            </select>
           </div>
-          <select
-            value={categoryId}
-            onChange={(e) => {
-              const selectedId = e.target.value;
-              setCategoryId(selectedId);
-              if (
-                selectedId &&
-                selectedId !== '[object Object]' &&
-                !productCategoryList.some((item) => getCatItemText(item) === selectedId)
-              ) {
-                setProductCategoryList([...productCategoryList, selectedId]);
-              }
-            }}
-            className="w-full text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2 text-slate-900 dark:text-white outline-none focus:border-indigo-500"
-          >
-            {nestedCategories.length === 0 ? (
-              <option value="">-- Chưa có danh mục Active --</option>
-            ) : (
-              nestedCategories.map(({ category: c, depth }) => {
-                const cId = String(c.id || '').trim();
-                if (!cId || cId === '[object Object]') return null;
-                return (
-                  <option key={cId} value={cId}>
-                    {depth > 0 ? `${'— '.repeat(depth)}↳ ` : ''}
-                    {tc(c.name) || c.name || cId} (Active)
-                  </option>
-                );
-              })
-            )}
-          </select>
-        </div>
+        )}
 
         <div>
           <div className="flex items-center justify-between mb-1">

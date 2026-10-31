@@ -7,6 +7,7 @@ import { useAppDispatch } from '@/store/hooks';
 import {
   deleteProduct,
   publishProduct,
+  unpublishProduct,
   setDraftedProducts,
   setPublishedProducts,
 } from '@/store/slices/productsSlice';
@@ -15,6 +16,7 @@ import {
   apiGetDraftedSpuList,
   apiGetPublishedSpuList,
   apiPublishSpu,
+  apiUnpublishSpu,
   extractSpuArray,
   isProductPublished,
   mapSpuToProduct,
@@ -37,12 +39,13 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({ product })
   const [activeImage, setActiveImage] = useState<string>('');
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
+  const [isUnpublishing, setIsUnpublishing] = useState(false);
 
   const currentImage = activeImage || product.thumbnail;
   const isPublished = isProductPublished(product);
 
   const handlePublish = async () => {
-    if (isPublishing) return;
+    if (isPublishing || isUnpublishing) return;
     setIsPublishing(true);
     try {
       await apiPublishSpu(product);
@@ -83,6 +86,45 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({ product })
       dispatch(showErrorToast(getApiErrorMessage(error)));
     } finally {
       setIsPublishing(false);
+    }
+  };
+
+  const handleUnpublish = async () => {
+    if (isUnpublishing || isPublishing) return;
+    setIsUnpublishing(true);
+    try {
+      await apiUnpublishSpu(product);
+      dispatch(unpublishProduct(product.id));
+      dispatch(showToast(`Đã gỡ xuất bản sản phẩm "${tp(product.name)}" thành công!`));
+
+      const [publishedRes, draftedRes] = await Promise.allSettled([
+        apiGetPublishedSpuList(),
+        apiGetDraftedSpuList(),
+      ]);
+      if (publishedRes.status === 'fulfilled') {
+        const rawPublished = extractSpuArray(publishedRes.value.data);
+        if (Array.isArray(rawPublished)) {
+          dispatch(
+            setPublishedProducts(
+              rawPublished.map((item, idx) => mapSpuToProduct(item, idx, 'active'))
+            )
+          );
+        }
+      }
+      if (draftedRes.status === 'fulfilled') {
+        const rawDrafted = extractSpuArray(draftedRes.value.data);
+        if (Array.isArray(rawDrafted)) {
+          dispatch(
+            setDraftedProducts(
+              rawDrafted.map((item, idx) => mapSpuToProduct(item, idx, 'draft'))
+            )
+          );
+        }
+      }
+    } catch (error: unknown) {
+      dispatch(showErrorToast(getApiErrorMessage(error)));
+    } finally {
+      setIsUnpublishing(false);
     }
   };
 
@@ -127,16 +169,29 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({ product })
               {t('table.delete_product')}
             </Button>
           )}
-          <Button
-            variant="secondary"
-            size="sm"
-            isLoading={isPublishing}
-            disabled={isPublishing}
-            onClick={handlePublish}
-            leftIcon={<Icons.Rocket size={15} />}
-          >
-            {t('table.publish')}
-          </Button>
+          {isPublished ? (
+            <Button
+              variant="secondary"
+              size="sm"
+              isLoading={isUnpublishing}
+              disabled={isUnpublishing}
+              onClick={handleUnpublish}
+              leftIcon={<Icons.EyeOff size={15} />}
+            >
+              {t('table.unpublish')}
+            </Button>
+          ) : (
+            <Button
+              variant="secondary"
+              size="sm"
+              isLoading={isPublishing}
+              disabled={isPublishing}
+              onClick={handlePublish}
+              leftIcon={<Icons.Rocket size={15} />}
+            >
+              {t('table.publish')}
+            </Button>
+          )}
           <Button
             variant="primary"
             size="sm"

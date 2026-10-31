@@ -101,7 +101,11 @@ export const ProductFormView: React.FC<ProductFormViewProps> = ({
     EXAMPLE_CREATE_SPU_PAYLOAD.product_category
   );
   const [productAttributes, setProductAttributes] = useState<SpuProductAttributes>(
-    EXAMPLE_CREATE_SPU_PAYLOAD.product_attributes
+    initialData?.product_attributes || {
+      attribute_id: 200000,
+      attribute_value: [],
+      items: [],
+    }
   );
   const [productVariations, setProductVariations] = useState<SpuVariationGroup[]>(
     EXAMPLE_CREATE_SPU_PAYLOAD.product_variations
@@ -197,7 +201,11 @@ export const ProductFormView: React.FC<ProductFormViewProps> = ({
         : [];
       setProductCategoryList(cleanProductCategory);
       setProductAttributes(
-        initialData.product_attributes || EXAMPLE_CREATE_SPU_PAYLOAD.product_attributes
+        initialData.product_attributes || {
+          attribute_id: 200000,
+          attribute_value: [],
+          items: [],
+        }
       );
       setProductVariations(
         initialData.product_variations || EXAMPLE_CREATE_SPU_PAYLOAD.product_variations
@@ -368,7 +376,21 @@ export const ProductFormView: React.FC<ProductFormViewProps> = ({
               {initialData ? 'Chỉnh sửa sản phẩm' : 'Thêm sản phẩm mới (Create SPU)'}
             </h1>
             <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
-              Điền thông tin SPU &amp; SKU chuẩn để gửi tới <code className="font-mono text-indigo-600 dark:text-indigo-400">/v1/api/product/spu/create</code>
+              {initialData ? (
+                <>
+                  Cập nhật thông tin SPU &amp; SKU gửi tới{' '}
+                  <code className="font-mono text-indigo-600 dark:text-indigo-400">
+                    /v1/api/product/spu/update/{initialData.product_id || initialData.id}
+                  </code>
+                </>
+              ) : (
+                <>
+                  Điền thông tin SPU &amp; SKU chuẩn để gửi tới{' '}
+                  <code className="font-mono text-indigo-600 dark:text-indigo-400">
+                    /v1/api/product/spu/create
+                  </code>
+                </>
+              )}
             </p>
           </div>
         </div>
@@ -479,6 +501,7 @@ export const ProductFormView: React.FC<ProductFormViewProps> = ({
               setProductCategoryList={setProductCategoryList}
               productAttributes={productAttributes}
               setProductAttributes={setProductAttributes}
+              isEdit={Boolean(initialData)}
             />
           )}
 
@@ -556,7 +579,9 @@ export const ProductFormView: React.FC<ProductFormViewProps> = ({
           >
             <span className="flex items-center gap-2 font-mono">
               <Icons.Layers size={14} className="text-indigo-500" />
-              POST /v1/api/product/spu/create — Xem trước Request Body JSON ({skuList.length} SKUs)
+              {initialData
+                ? `PATCH /v1/api/product/spu/update/${initialData.product_id || initialData.id} — Xem trước Request Body JSON (${skuList.length} SKUs)`
+                : `POST /v1/api/product/spu/create — Xem trước Request Body JSON (${skuList.length} SKUs)`}
             </span>
             <Icons.ChevronDown
               size={15}

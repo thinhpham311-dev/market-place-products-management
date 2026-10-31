@@ -119,21 +119,18 @@ export const ProductAttributeSection: React.FC<ProductAttributeSectionProps> = (
       return [
         {
           id: `attr-${productAttributes.attribute_id}`,
-          name: productAttributes.name || 'Chất liệu (Mặc định SPU)',
+          name:
+            productAttributes.name ||
+            (productAttributes.attribute_id === 200000
+              ? 'Chất liệu'
+              : `Thuộc tính #${productAttributes.attribute_id}`),
           attribute_id: productAttributes.attribute_id,
           attribute_value: productAttributes.attribute_value,
         },
       ];
     }
 
-    return [
-      {
-        id: 'attr-200000',
-        name: 'Chất liệu (Mặc định SPU)',
-        attribute_id: 200000,
-        attribute_value: [{ value_id: 1, name: 'Cotton' }, { value_id: 2, name: 'Polyester' }],
-      },
-    ];
+    return [];
   }, [productAttributes]);
 
   const [attributes, setAttributes] = useState<SpuAttributeItem[]>(initialItems);
@@ -151,7 +148,7 @@ export const ProductAttributeSection: React.FC<ProductAttributeSectionProps> = (
     if (nextAttributes.length === 0) {
       const fallback: SpuProductAttributes = {
         attribute_id: 200000,
-        attribute_value: [{ value_id: 1 }],
+        attribute_value: [],
         items: [],
       };
       setProductAttributes(fallback);

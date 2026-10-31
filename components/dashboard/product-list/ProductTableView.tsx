@@ -13,6 +13,7 @@ interface ProductTableViewProps {
   selectedIds: string[];
   isAllSelected: boolean;
   publishingIds?: Record<string, boolean>;
+  unpublishingIds?: Record<string, boolean>;
   onSelectAll: (checked: boolean) => void;
   onToggleSelect: (id: string) => void;
   onSelectProduct: (product: Product) => void;
@@ -21,6 +22,7 @@ interface ProductTableViewProps {
   onDuplicateProduct: (product: Product) => void;
   onToggleStatus: (id: string) => void;
   onOpenPublishModal: (product: Product) => void;
+  onUnpublishProduct?: (product: Product) => void;
   onQuickUpdateStock: (id: string, newStock: number) => void;
 }
 
@@ -29,6 +31,7 @@ export const ProductTableView: React.FC<ProductTableViewProps> = ({
   selectedIds,
   isAllSelected,
   publishingIds = {},
+  unpublishingIds = {},
   onSelectAll,
   onToggleSelect,
   onSelectProduct,
@@ -37,9 +40,10 @@ export const ProductTableView: React.FC<ProductTableViewProps> = ({
   onDuplicateProduct,
   onToggleStatus,
   onOpenPublishModal,
+  onUnpublishProduct,
   onQuickUpdateStock,
 }) => {
-  const { t, tp, tc, formatCurrency, formatNumber } = useTranslation();
+  const { t, tp, formatCurrency, formatNumber } = useTranslation();
   const [editingStockId, setEditingStockId] = useState<string | null>(null);
   const [inlineStockVal, setInlineStockVal] = useState<number>(0);
 
@@ -63,7 +67,6 @@ export const ProductTableView: React.FC<ProductTableViewProps> = ({
                 />
               </th>
               <th className="py-3.5 px-4 font-semibold">{t('table.col_product')}</th>
-              <th className="py-3.5 px-4 font-semibold">{t('table.col_category')}</th>
               <th className="py-3.5 px-4 font-semibold">{t('table.col_price')}</th>
               <th className="py-3.5 px-4 font-semibold">{t('table.col_stock')}</th>
               <th className="py-3.5 px-4 font-semibold">{t('table.col_status_channels')}</th>
@@ -135,13 +138,6 @@ export const ProductTableView: React.FC<ProductTableViewProps> = ({
                         </div>
                       </div>
                     </div>
-                  </td>
-
-                  {/* Category */}
-                  <td className="py-3 px-4">
-                    <span className="inline-block px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
-                      {tc(p.category)}
-                    </span>
                   </td>
 
                   {/* Price */}
@@ -223,12 +219,13 @@ export const ProductTableView: React.FC<ProductTableViewProps> = ({
                       <div className="flex items-center gap-2">
                         <button
                           onClick={() => onToggleStatus(p.id)}
+                          disabled={Boolean(publishingIds[p.id] || unpublishingIds[p.id])}
                           className={`w-8 h-4.5 flex items-center rounded-full p-0.5 transition-colors cursor-pointer ${
                             p.status === 'active' ? 'bg-indigo-600' : 'bg-slate-300 dark:bg-slate-700'
-                          }`}
+                          } disabled:opacity-50`}
                           title={
                             p.status === 'active'
-                              ? t('table.toggle_hide')
+                              ? t('table.unpublish_tooltip')
                               : t('table.toggle_activate')
                           }
                         >
@@ -286,14 +283,26 @@ export const ProductTableView: React.FC<ProductTableViewProps> = ({
                           {t('table.publish')}
                         </Button>
                       ) : (
-                        <button
-                          onClick={() => onOpenPublishModal(p)}
-                          disabled={Boolean(publishingIds[p.id])}
-                          className="p-1.5 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 rounded-lg transition-colors cursor-pointer disabled:opacity-50"
-                          title={t('table.publish_tooltip')}
-                        >
-                          <Icons.Rocket size={15} />
-                        </button>
+                        <>
+                          {onUnpublishProduct && (
+                            <button
+                              onClick={() => onUnpublishProduct(p)}
+                              disabled={Boolean(unpublishingIds[p.id] || publishingIds[p.id])}
+                              className="p-1.5 text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/40 rounded-lg transition-colors cursor-pointer disabled:opacity-50"
+                              title={t('table.unpublish_tooltip')}
+                            >
+                              <Icons.EyeOff size={15} />
+                            </button>
+                          )}
+                          <button
+                            onClick={() => onOpenPublishModal(p)}
+                            disabled={Boolean(publishingIds[p.id] || unpublishingIds[p.id])}
+                            className="p-1.5 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 rounded-lg transition-colors cursor-pointer disabled:opacity-50"
+                            title={t('table.publish_tooltip')}
+                          >
+                            <Icons.Rocket size={15} />
+                          </button>
+                        </>
                       )}
 
                       <button

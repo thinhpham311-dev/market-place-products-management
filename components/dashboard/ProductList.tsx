@@ -25,15 +25,18 @@ interface ProductListProps {
   categories: ProductCategory[];
   searchQuery: string;
   publishingIds?: Record<string, boolean>;
+  unpublishingIds?: Record<string, boolean>;
   onSelectProduct: (product: Product) => void;
   onEditProduct: (product: Product) => void;
   onDeleteProduct: (id: string) => void;
   onDuplicateProduct: (product: Product) => void;
   onToggleStatus: (id: string) => void;
   onOpenPublishModal: (product: Product) => void;
+  onUnpublishProduct?: (product: Product) => void;
   onQuickUpdateStock: (id: string, newStock: number) => void;
   onBulkUpdateStatus: (ids: string[], status: ProductStatus) => void;
   onBulkPublish: (ids: string[]) => void;
+  onBulkUnpublish?: (ids: string[]) => void;
   onBulkDelete: (ids: string[]) => void;
   onOpenCreateProduct: () => void;
 }
@@ -43,15 +46,18 @@ export const ProductList: React.FC<ProductListProps> = ({
   categories,
   searchQuery,
   publishingIds = {},
+  unpublishingIds = {},
   onSelectProduct,
   onEditProduct,
   onDeleteProduct,
   onDuplicateProduct,
   onToggleStatus,
   onOpenPublishModal,
+  onUnpublishProduct,
   onQuickUpdateStock,
   onBulkUpdateStatus,
   onBulkPublish,
+  onBulkUnpublish,
   onBulkDelete,
   onOpenCreateProduct,
 }) => {
@@ -236,6 +242,7 @@ export const ProductList: React.FC<ProductListProps> = ({
           selectedIds={selectedIds}
           isAllSelected={isAllSelected}
           publishingIds={publishingIds}
+          unpublishingIds={unpublishingIds}
           onSelectAll={handleSelectAll}
           onToggleSelect={handleToggleSelect}
           onSelectProduct={onSelectProduct}
@@ -244,6 +251,7 @@ export const ProductList: React.FC<ProductListProps> = ({
           onDuplicateProduct={onDuplicateProduct}
           onToggleStatus={onToggleStatus}
           onOpenPublishModal={onOpenPublishModal}
+          onUnpublishProduct={onUnpublishProduct}
           onQuickUpdateStock={onQuickUpdateStock}
         />
       ) : (
@@ -251,11 +259,13 @@ export const ProductList: React.FC<ProductListProps> = ({
           products={paginatedProducts}
           selectedIds={selectedIds}
           publishingIds={publishingIds}
+          unpublishingIds={unpublishingIds}
           onToggleSelect={handleToggleSelect}
           onSelectProduct={onSelectProduct}
           onEditProduct={onEditProduct}
           onDeleteProduct={onDeleteProduct}
           onOpenPublishModal={onOpenPublishModal}
+          onUnpublishProduct={onUnpublishProduct}
         />
       )}
 
@@ -280,6 +290,14 @@ export const ProductList: React.FC<ProductListProps> = ({
           onBulkPublish(selectedIds);
           setSelectedIds([]);
         }}
+        onBulkUnpublish={
+          onBulkUnpublish
+            ? () => {
+                onBulkUnpublish(selectedIds);
+                setSelectedIds([]);
+              }
+            : undefined
+        }
         onDeleteSelected={() => {
           onBulkDelete(selectedIds);
           setSelectedIds([]);

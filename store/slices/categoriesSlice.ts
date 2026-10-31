@@ -178,8 +178,10 @@ const categoriesSlice = createSlice({
       const uniqueItems = Array.from(
         new Map(Array.from(byKey.values()).map((c) => [c.id, c])).values()
       );
-      state.items = uniqueItems;
-      state.statusOverrides = {};
+      state.items = applyStatusOverrides(
+        uniqueItems,
+        state.statusOverrides || {}
+      );
     },
   },
 });

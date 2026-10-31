@@ -15,7 +15,9 @@ import {
 export const NEXT_DRAFTED_SPU_LIST_ENDPOINT = "/api/product/spu/drafted/list";
 export const NEXT_PUBLISHED_SPU_LIST_ENDPOINT = "/api/product/spu/published/list";
 export const NEXT_CREATE_SPU_ENDPOINT = "/api/product/spu/create";
+export const NEXT_UPDATE_SPU_ENDPOINT = "/api/product/spu/update";
 export const NEXT_PUBLISH_SPU_ENDPOINT = "/api/product/spu/publish";
+export const NEXT_UNPUBLISH_SPU_ENDPOINT = "/api/product/spu/unpublish";
 
 export const DEFAULT_SPU_VARIATION_IMAGE =
   "https://res.cloudinary.com/dgincjt1i/image/upload/v1751873400/Image-not-found_qxnjwm.png";
@@ -180,14 +182,14 @@ export function buildCreateSpuPayload(product: Partial<Product>): CreateSpuPaylo
 
   let product_attributes: SpuProductAttributes = {
     attribute_id: 200000,
-    attribute_value: [{ value_id: 1 }, { value_id: 2 }],
+    attribute_value: [],
+    items: [],
   };
 
   if (product.product_attributes) {
     if (
       typeof product.product_attributes.attribute_id === "number" &&
-      Array.isArray(product.product_attributes.attribute_value) &&
-      product.product_attributes.attribute_value.length > 0
+      Array.isArray(product.product_attributes.attribute_value)
     ) {
       product_attributes = {
         attribute_id: Number(product.product_attributes.attribute_id),
@@ -203,21 +205,28 @@ export function buildCreateSpuPayload(product: Partial<Product>): CreateSpuPaylo
           : {}),
       };
     } else if (
-      Array.isArray(product.product_attributes.items) &&
-      product.product_attributes.items.length > 0
+      Array.isArray(product.product_attributes.items)
     ) {
-      const first = product.product_attributes.items[0];
-      product_attributes = {
-        attribute_id: Number(first.attribute_id) || 200000,
-        ...(first.name ? { name: safeExtractString(first.name, "") } : {}),
-        attribute_value: Array.isArray(first.attribute_value)
-          ? first.attribute_value.map((v) => ({
-              value_id: Number(v.value_id),
-              ...(v.name ? { name: safeExtractString(v.name, "") } : {}),
-            }))
-          : [{ value_id: 1 }],
-        items: product.product_attributes.items,
-      };
+      if (product.product_attributes.items.length > 0) {
+        const first = product.product_attributes.items[0];
+        product_attributes = {
+          attribute_id: Number(first.attribute_id) || 200000,
+          ...(first.name ? { name: safeExtractString(first.name, "") } : {}),
+          attribute_value: Array.isArray(first.attribute_value)
+            ? first.attribute_value.map((v) => ({
+                value_id: Number(v.value_id),
+                ...(v.name ? { name: safeExtractString(v.name, "") } : {}),
+              }))
+            : [],
+          items: product.product_attributes.items,
+        };
+      } else {
+        product_attributes = {
+          attribute_id: 200000,
+          attribute_value: [],
+          items: [],
+        };
+      }
     }
   }
 
@@ -310,6 +319,84 @@ export function extractCreatedSpu(data: any): Record<string, any> | null {
   return null;
 }
 
+export function buildUpdateSpuPayload(
+  product: Partial<Product> & Record<string, any>,
+): Record<string, unknown> {
+  const basePayload = buildCreateSpuPayload(product);
+
+  const primaryId = safeExtractString(
+    product.product_id || product.spu_id || product.id || product._id,
+    "",
+  ).trim();
+
+  return {
+    ...basePayload,
+    ...(primaryId
+      ? {
+          product_id: primaryId,
+          spu_id: primaryId,
+          _id: primaryId,
+        }
+      : {}),
+    ...(product.fallback_id ? { fallback_id: product.fallback_id } : {}),
+  };
+}
+
+export async function apiUpdateSpu(
+  productOrId: Product | string,
+  payload?: Partial<Product> | Record<string, unknown>,
+) {
+  const isProductObj = typeof productOrId === "object" && productOrId !== null;
+  const primaryId = isProductObj
+    ? String(
+        productOrId.product_id ||
+          productOrId.id ||
+          productOrId.spu_id ||
+          productOrId.sku ||
+          "",
+      ).trim()
+    : String(productOrId || "").trim();
+
+  const fallbackId = isProductObj
+    ? String(
+        productOrId.spu_id ||
+          productOrId.id ||
+          productOrId.product_id ||
+          (productOrId.sku && !productOrId.sku.startsWith("SPU-")
+            ? productOrId.sku
+            : "") ||
+          "",
+      ).trim()
+    : undefined;
+
+  const dataPayload =
+    payload && "product_name" in payload
+      ? payload
+      : payload
+        ? buildUpdateSpuPayload(payload as Partial<Product>)
+        : {};
+
+  return ApiService.fetchData<Record<string, any>>({
+    url: `/product/spu/update/${encodeURIComponent(primaryId)}`,
+    method: "patch",
+    data: {
+      product_id: primaryId,
+      ...(fallbackId && fallbackId !== primaryId
+        ? { fallback_id: fallbackId, spu_id: fallbackId, _id: fallbackId }
+        : {}),
+      ...(dataPayload || {}),
+    },
+    headers: {
+      [REQUEST_HEADER_API_KEY]:
+        process.env.NEXT_PUBLIC_API_KEY || NEXT_PUBLIC_API_KEY,
+    },
+  });
+}
+
+export function extractUpdatedSpu(data: any): Record<string, any> | null {
+  return extractCreatedSpu(data);
+}
+
 export function isProductPublished(product: Product): boolean {
   return (
     product.status === "active" ||
@@ -348,6 +435,50 @@ export async function apiPublishSpu(
 
   return ApiService.fetchData<Record<string, any>>({
     url: `/product/spu/publish/${encodeURIComponent(primaryId)}`,
+    method: "post",
+    data: {
+      product_id: primaryId,
+      ...(fallbackId && fallbackId !== primaryId
+        ? { fallback_id: fallbackId, spu_id: fallbackId, _id: fallbackId }
+        : {}),
+      ...(payload || {}),
+    },
+    headers: {
+      [REQUEST_HEADER_API_KEY]:
+        process.env.NEXT_PUBLIC_API_KEY || NEXT_PUBLIC_API_KEY,
+    },
+  });
+}
+
+export async function apiUnpublishSpu(
+  productOrId: Product | string,
+  payload?: Record<string, unknown>,
+) {
+  const isProductObj = typeof productOrId === "object" && productOrId !== null;
+  const primaryId = isProductObj
+    ? String(
+        productOrId.product_id ||
+          productOrId.id ||
+          productOrId.spu_id ||
+          productOrId.sku ||
+          "",
+      ).trim()
+    : String(productOrId || "").trim();
+
+  const fallbackId = isProductObj
+    ? String(
+        productOrId.spu_id ||
+          productOrId.id ||
+          productOrId.product_id ||
+          (productOrId.sku && !productOrId.sku.startsWith("SPU-")
+            ? productOrId.sku
+            : "") ||
+          "",
+      ).trim()
+    : undefined;
+
+  return ApiService.fetchData<Record<string, any>>({
+    url: `/product/spu/unpublish/${encodeURIComponent(primaryId)}`,
     method: "post",
     data: {
       product_id: primaryId,

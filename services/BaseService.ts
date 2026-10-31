@@ -187,6 +187,12 @@ export function resolveApiEndpointLabel(endpoint: string): string {
   if (endpoint.includes("/product/spu/create")) {
     return "Tạo sản phẩm SPU";
   }
+  if (endpoint.includes("/product/spu/update")) {
+    return "Cập nhật sản phẩm SPU";
+  }
+  if (endpoint.includes("/product/spu/unpublish")) {
+    return "Hủy xuất bản sản phẩm SPU";
+  }
   if (endpoint.includes("/product/spu/publish")) {
     return "Xuất bản sản phẩm SPU";
   }

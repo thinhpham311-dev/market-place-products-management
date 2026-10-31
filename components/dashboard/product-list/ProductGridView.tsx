@@ -12,22 +12,26 @@ interface ProductGridViewProps {
   products: Product[];
   selectedIds: string[];
   publishingIds?: Record<string, boolean>;
+  unpublishingIds?: Record<string, boolean>;
   onToggleSelect: (id: string) => void;
   onSelectProduct: (product: Product) => void;
   onEditProduct: (product: Product) => void;
   onDeleteProduct: (id: string) => void;
   onOpenPublishModal: (product: Product) => void;
+  onUnpublishProduct?: (product: Product) => void;
 }
 
 export const ProductGridView: React.FC<ProductGridViewProps> = ({
   products,
   selectedIds,
   publishingIds = {},
+  unpublishingIds = {},
   onToggleSelect,
   onSelectProduct,
   onEditProduct,
   onDeleteProduct,
   onOpenPublishModal,
+  onUnpublishProduct,
 }) => {
   const { t, tp, tc, formatCurrency, formatNumber } = useTranslation();
 
@@ -163,9 +167,20 @@ export const ProductGridView: React.FC<ProductGridViewProps> = ({
                   {t('table.col_sold')}: <strong>{formatNumber(p.soldCount)}</strong>
                 </span>
                 <div className="flex items-center gap-1">
+                  {!isDraft && onUnpublishProduct && (
+                    <button
+                      onClick={() => onUnpublishProduct(p)}
+                      disabled={Boolean(unpublishingIds[p.id] || publishingIds[p.id])}
+                      className="p-1.5 text-amber-600 hover:text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/40 rounded-lg transition-colors disabled:opacity-50"
+                      title={t('table.unpublish_tooltip')}
+                    >
+                      <Icons.EyeOff size={15} />
+                    </button>
+                  )}
                   <button
                     onClick={() => onOpenPublishModal(p)}
-                    className="p-1.5 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 rounded-lg transition-colors"
+                    disabled={Boolean(publishingIds[p.id] || unpublishingIds[p.id])}
+                    className="p-1.5 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 rounded-lg transition-colors disabled:opacity-50"
                     title={t('table.publish_tooltip')}
                   >
                     <Icons.Rocket size={15} />

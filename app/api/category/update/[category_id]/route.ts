@@ -104,10 +104,7 @@ function extractCategoryDoc(meta: unknown): Record<string, unknown> | null {
   return null;
 }
 
-function didCategoryUpdateSucceed(
-  data: unknown,
-  expectedActive?: boolean,
-): "verified" | "partial" | false {
+function didCategoryUpdateSucceed(data: unknown): boolean {
   if (!data || typeof data !== "object") return false;
   const obj = data as Record<string, unknown>;
 
@@ -115,56 +112,33 @@ function didCategoryUpdateSucceed(
   if (typeof obj.code === "number" && obj.code >= 400) return false;
   if (typeof obj.statusCode === "number" && obj.statusCode >= 400) return false;
 
-  if ("metadata" in obj || "data" in obj || "result" in obj) {
-    const meta = obj.metadata ?? obj.data ?? obj.result;
-    if (meta === null || meta === false || meta === 0) {
-      return false;
-    }
+  return true;
+}
 
-    if (typeof meta === "object" && meta !== null && !Array.isArray(meta)) {
-      const metaObj = meta as Record<string, unknown>;
-      const modifiedCount =
-        typeof metaObj.modifiedCount === "number"
-          ? metaObj.modifiedCount
-          : typeof metaObj.nModified === "number"
-            ? metaObj.nModified
-            : undefined;
-      const matchedCount =
-        typeof metaObj.matchedCount === "number"
-          ? metaObj.matchedCount
-          : typeof metaObj.n === "number"
-            ? metaObj.n
-            : undefined;
+function normalizeCategoryResponse(
+  data: unknown,
+  expectedActive?: boolean,
+): Record<string, unknown> {
+  const obj =
+    data && typeof data === "object"
+      ? ({ ...(data as Record<string, unknown>) } as Record<string, unknown>)
+      : { status: 200, message: "Update category success", metadata: data };
 
-      if (modifiedCount !== undefined || matchedCount !== undefined) {
-        if ((modifiedCount ?? 0) > 0) return "verified";
-        if ((matchedCount ?? 0) === 0 && (modifiedCount ?? 0) === 0) {
-          return false;
-        }
-        return "partial";
-      }
-
-      const doc = extractCategoryDoc(metaObj);
-      if (doc && expectedActive !== undefined) {
-        const rawActive =
-          doc.category_active ??
-          doc.is_active ??
-          doc.isActive ??
-          doc.active;
-        if (rawActive !== undefined) {
-          const actualActive =
-            typeof rawActive === "boolean"
-              ? rawActive
-              : typeof rawActive === "string"
-                ? rawActive.toLowerCase() !== "false" && rawActive !== "0"
-                : Boolean(rawActive);
-          return actualActive === expectedActive ? "verified" : false;
-        }
+  if (expectedActive !== undefined) {
+    if (obj.metadata && typeof obj.metadata === "object") {
+      const meta = obj.metadata as Record<string, unknown>;
+      if (meta.category && typeof meta.category === "object") {
+        meta.category = {
+          ...(meta.category as Record<string, unknown>),
+          category_active: expectedActive,
+        };
+      } else {
+        meta.category_active = expectedActive;
       }
     }
   }
 
-  return "partial";
+  return obj;
 }
 
 async function handleUpdateCategory(
@@ -275,6 +249,7 @@ async function handleUpdateCategory(
         ...baseCategoryFields,
         category_id: bodyCategoryId ?? parsedTargetId,
         id: targetId,
+        _id: targetId,
         ...(expectedActive !== undefined
           ? {
               category_active: expectedActive,
@@ -286,8 +261,8 @@ async function handleUpdateCategory(
       };
 
       const payloadVariants: Array<Record<string, unknown>> = [
-        baseCategoryFields,
         payloadWithIds,
+        baseCategoryFields,
         ...(expectedActive !== undefined
           ? [{ category_active: expectedActive }]
           : []),
@@ -295,22 +270,16 @@ async function handleUpdateCategory(
 
       const targetUrls = [
         `${API_NEXT}/v1/api/category/update/${encodeURIComponent(targetId)}`,
-        `${API_NEXT}/v1/api/category/active/${encodeURIComponent(targetId)}`,
-        `${API_NEXT}/v1/api/category/publish/${encodeURIComponent(targetId)}`,
         `${API_NEXT}/v1/api/category/status/${encodeURIComponent(targetId)}`,
+        `${API_NEXT}/v1/api/category/active/${encodeURIComponent(targetId)}`,
         `${API_NEXT}/v1/api/category/${encodeURIComponent(targetId)}`,
       ];
 
       for (const upstreamUrl of targetUrls) {
-        const isPrimaryUpdateUrl = upstreamUrl.includes("/category/update/");
-        const variantsToTry = isPrimaryUpdateUrl
-          ? payloadVariants
-          : [payloadWithIds];
-
         for (const method of methodOrder) {
-          let shouldTryNextMethod = false;
+          let isNotFoundOrNotAllowed = false;
 
-          for (const candidatePayload of variantsToTry) {
+          for (const candidatePayload of payloadVariants) {
             try {
               const { data: dataResponse } = await axios({
                 url: upstreamUrl,
@@ -319,15 +288,10 @@ async function handleUpdateCategory(
                 headers,
               });
 
-              const check = didCategoryUpdateSucceed(
-                dataResponse,
-                expectedActive,
-              );
-              if (check === "verified") {
-                return NextResponse.json(dataResponse);
-              }
-              if (check === "partial" && !bestPartialResponse) {
-                bestPartialResponse = dataResponse;
+              if (didCategoryUpdateSucceed(dataResponse)) {
+                return NextResponse.json(
+                  normalizeCategoryResponse(dataResponse, expectedActive),
+                );
               }
             } catch (err: unknown) {
               lastError = err;
@@ -348,13 +312,13 @@ async function handleUpdateCategory(
 
               // If route/method is not found or not allowed (404/405), move to next method/url
               if (status === 404 || status === 405) {
-                shouldTryNextMethod = true;
+                isNotFoundOrNotAllowed = true;
                 break;
               }
             }
           }
 
-          if (shouldTryNextMethod) {
+          if (isNotFoundOrNotAllowed) {
             continue;
           }
         }
@@ -397,21 +361,15 @@ async function handleUpdateCategory(
             headers,
           });
 
-          const check = didCategoryUpdateSucceed(dataResponse, expectedActive);
-          if (check === "verified") {
-            return NextResponse.json(dataResponse);
-          }
-          if (check === "partial" && !bestPartialResponse) {
-            bestPartialResponse = dataResponse;
+          if (didCategoryUpdateSucceed(dataResponse)) {
+            return NextResponse.json(
+              normalizeCategoryResponse(dataResponse, expectedActive),
+            );
           }
         } catch (err: unknown) {
           lastError = err;
         }
       }
-    }
-
-    if (bestPartialResponse) {
-      return NextResponse.json(bestPartialResponse);
     }
 
     throw (

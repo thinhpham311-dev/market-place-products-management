@@ -10,7 +10,9 @@ import {
   toggleStatus,
   quickUpdateStock,
   publishProduct,
+  unpublishProduct,
   bulkPublish,
+  bulkUnpublish,
   bulkUpdateStatus,
   bulkDelete,
   setDraftedProducts,
@@ -20,6 +22,7 @@ import {
   apiGetDraftedSpuList,
   apiGetPublishedSpuList,
   apiPublishSpu,
+  apiUnpublishSpu,
   extractSpuArray,
   isProductPublished,
   mapSpuToProduct,
@@ -49,6 +52,7 @@ export default function ProductsPage() {
 
   const [pendingDeleteIds, setPendingDeleteIds] = useState<string[]>([]);
   const [publishingIds, setPublishingIds] = useState<Record<string, boolean>>({});
+  const [unpublishingIds, setUnpublishingIds] = useState<Record<string, boolean>>({});
   const activeTab = searchParams.get('tab');
 
   const fetchSpuProducts = useCallback(async () => {
@@ -91,7 +95,7 @@ export default function ProductsPage() {
   const handleOpenDetail = (product: Product) => router.push(`/products/${product.id}`);
 
   const handleOpenPublish = async (product: Product) => {
-    if (publishingIds[product.id]) return;
+    if (publishingIds[product.id] || unpublishingIds[product.id]) return;
 
     setPublishingIds((prev) => ({ ...prev, [product.id]: true }));
     try {
@@ -109,6 +113,26 @@ export default function ProductsPage() {
       dispatch(showErrorToast(getApiErrorMessage(error)));
     } finally {
       setPublishingIds((prev) => {
+        const next = { ...prev };
+        delete next[product.id];
+        return next;
+      });
+    }
+  };
+
+  const handleUnpublish = async (product: Product) => {
+    if (unpublishingIds[product.id] || publishingIds[product.id]) return;
+
+    setUnpublishingIds((prev) => ({ ...prev, [product.id]: true }));
+    try {
+      await apiUnpublishSpu(product);
+      dispatch(unpublishProduct(product.id));
+      dispatch(showToast(`Đã gỡ xuất bản sản phẩm "${product.name}" thành công!`));
+      void fetchSpuProducts();
+    } catch (error: unknown) {
+      dispatch(showErrorToast(getApiErrorMessage(error)));
+    } finally {
+      setUnpublishingIds((prev) => {
         const next = { ...prev };
         delete next[product.id];
         return next;
@@ -152,15 +176,15 @@ export default function ProductsPage() {
 
   const handleToggleStatus = async (id: string) => {
     const target = products.find((p) => p.id === id);
-    if (!target || publishingIds[id]) return;
+    if (!target || publishingIds[id] || unpublishingIds[id]) return;
 
-    const isActivating = target.status !== 'active';
-    if (isActivating) {
-      await handleOpenPublish(target);
+    const isCurrentlyPublished = target.status === 'active' || isProductPublished(target);
+    if (isCurrentlyPublished) {
+      await handleUnpublish(target);
       return;
     }
 
-    dispatch(toggleStatus(id));
+    await handleOpenPublish(target);
   };
 
   const handleQuickUpdateStock = (id: string, newStock: number) => {
@@ -173,6 +197,10 @@ export default function ProductsPage() {
   const handleBulkUpdateStatus = async (ids: string[], status: ProductStatus) => {
     if (status === 'active') {
       await handleBulkPublish(ids);
+      return;
+    }
+    if (status === 'draft') {
+      await handleBulkUnpublish(ids);
       return;
     }
     dispatch(bulkUpdateStatus({ ids, status }));
@@ -190,6 +218,23 @@ export default function ProductsPage() {
       );
       dispatch(bulkPublish(ids));
       dispatch(showToast(`Đã xuất bản hàng loạt ${ids.length} sản phẩm thành công!`));
+      void fetchSpuProducts();
+    } catch (error: unknown) {
+      dispatch(showErrorToast(getApiErrorMessage(error)));
+    }
+  };
+
+  const handleBulkUnpublish = async (ids: string[]) => {
+    if (ids.length === 0) return;
+    try {
+      await Promise.all(
+        ids.map((id) => {
+          const target = products.find((p) => p.id === id);
+          return apiUnpublishSpu(target || id);
+        })
+      );
+      dispatch(bulkUnpublish(ids));
+      dispatch(showToast(`Đã gỡ xuất bản hàng loạt ${ids.length} sản phẩm thành công!`));
       void fetchSpuProducts();
     } catch (error: unknown) {
       dispatch(showErrorToast(getApiErrorMessage(error)));
@@ -223,15 +268,18 @@ export default function ProductsPage() {
         categories={categories}
         searchQuery={globalSearch}
         publishingIds={publishingIds}
+        unpublishingIds={unpublishingIds}
         onSelectProduct={handleOpenDetail}
         onEditProduct={handleOpenEdit}
         onDeleteProduct={handleDeleteProduct}
         onDuplicateProduct={handleDuplicateProduct}
         onToggleStatus={handleToggleStatus}
         onOpenPublishModal={handleOpenPublish}
+        onUnpublishProduct={handleUnpublish}
         onQuickUpdateStock={handleQuickUpdateStock}
         onBulkUpdateStatus={handleBulkUpdateStatus}
         onBulkPublish={handleBulkPublish}
+        onBulkUnpublish={handleBulkUnpublish}
         onBulkDelete={handleBulkDelete}
         onOpenCreateProduct={handleOpenCreate}
       />

@@ -72,8 +72,12 @@ export async function apiUpdateCategoryStatus(payload: UpdateCategoryPayload) {
       ? String(payload.categoryId).trim()
       : undefined;
 
+  const activeBool = Boolean(payload.category_active);
   const data: Record<string, unknown> = {
-    category_active: Boolean(payload.category_active),
+    category_active: activeBool,
+    isActive: activeBool,
+    active: activeBool,
+    is_active: activeBool,
   };
 
   if (payload.id) {
@@ -108,15 +112,36 @@ export async function apiUpdateCategoryStatus(payload: UpdateCategoryPayload) {
     data.fallback_id = fallbackId;
   }
 
-  return ApiService.fetchData<Record<string, any>>({
-    url: `/category/update/${encodeURIComponent(primaryId)}`,
-    method: "patch",
-    data,
-    headers: {
-      [REQUEST_HEADER_API_KEY]:
-        process.env.NEXT_PUBLIC_API_KEY || NEXT_PUBLIC_API_KEY,
-    },
-  });
+  const apiKeyHeader = {
+    [REQUEST_HEADER_API_KEY]:
+      process.env.NEXT_PUBLIC_API_KEY || NEXT_PUBLIC_API_KEY,
+  };
+
+  try {
+    return await ApiService.fetchData<Record<string, any>>({
+      url: `/category/update/${encodeURIComponent(primaryId)}`,
+      method: "patch",
+      data,
+      headers: apiKeyHeader,
+    });
+  } catch (err: unknown) {
+    try {
+      return await ApiService.fetchData<Record<string, any>>({
+        url: `/category/update/${encodeURIComponent(primaryId)}`,
+        method: "post",
+        data,
+        headers: apiKeyHeader,
+      });
+    } catch {
+      // Fallback to dedicated status endpoint
+      return ApiService.fetchData<Record<string, any>>({
+        url: `/category/status`,
+        method: "post",
+        data,
+        headers: apiKeyHeader,
+      });
+    }
+  }
 }
 
 export async function apiDeleteCategory(
@@ -546,7 +571,7 @@ export function mapRawToCategory(
         ? rawActive.toLowerCase() !== "false" && rawActive !== "0"
         : typeof rawActive === "number"
           ? rawActive !== 0
-          : false;
+          : true;
 
   const rawLeft = raw.category_left ?? raw.left ?? raw.lft;
   const rawRight = raw.category_right ?? raw.right ?? raw.rgt;

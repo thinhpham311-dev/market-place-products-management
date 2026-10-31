@@ -39,11 +39,24 @@ function recordPublishedOverride(
   }
 }
 
+function isProductExplicitlyUnpublished(
+  product: Product,
+  overrides?: Record<string, boolean>
+): boolean {
+  if (!overrides) return false;
+  return (
+    overrides[product.id] === false ||
+    (Boolean(product.product_id) && overrides[product.product_id!] === false) ||
+    (Boolean(product.spu_id) && overrides[product.spu_id!] === false)
+  );
+}
+
 function isProductPublishedByOverride(
   product: Product,
   overrides?: Record<string, boolean>
 ): boolean {
   if (!overrides) return false;
+  if (isProductExplicitlyUnpublished(product, overrides)) return false;
   return Boolean(
     overrides[product.id] ||
       (product.product_id && overrides[product.product_id]) ||
@@ -235,6 +248,21 @@ const productsSlice = createSlice({
       }
     },
 
+    // Unpublish a product back to draft
+    unpublishProduct(state, action: PayloadAction<string>) {
+      const product = state.items.find((p) => matchesProductId(p, action.payload));
+      if (!product) return;
+      product.status = 'draft';
+      delete product.publishedAt;
+      if (Array.isArray(product.tags)) {
+        product.tags = product.tags.filter((t) => t !== 'published');
+        if (!product.tags.includes('draft')) {
+          product.tags.push('draft');
+        }
+      }
+      recordPublishedOverride(state, product, false);
+    },
+
     // Bulk publish
     bulkPublish(state, action: PayloadAction<string[]>) {
       const now = new Date().toISOString().replace('T', ' ').slice(0, 16);
@@ -243,6 +271,23 @@ const productsSlice = createSlice({
           p.status = 'active';
           p.publishedAt = now;
           recordPublishedOverride(state, p, true);
+        }
+      });
+    },
+
+    // Bulk unpublish
+    bulkUnpublish(state, action: PayloadAction<string[]>) {
+      state.items.forEach((p) => {
+        if (action.payload.some((id) => matchesProductId(p, id))) {
+          p.status = 'draft';
+          delete p.publishedAt;
+          if (Array.isArray(p.tags)) {
+            p.tags = p.tags.filter((t) => t !== 'published');
+            if (!p.tags.includes('draft')) {
+              p.tags.push('draft');
+            }
+          }
+          recordPublishedOverride(state, p, false);
         }
       });
     },
@@ -258,6 +303,8 @@ const productsSlice = createSlice({
           p.status = status;
           if (status === 'active') {
             recordPublishedOverride(state, p, true);
+          } else if (status === 'draft') {
+            recordPublishedOverride(state, p, false);
           }
         }
       });
@@ -296,7 +343,10 @@ const productsSlice = createSlice({
 
     // Sync published products fetched from /v1/api/product/spu/published/list
     setPublishedProducts(state, action: PayloadAction<Product[]>) {
-      const sanitizedIncoming = action.payload.map(sanitizeProduct);
+      const overrides = state.publishedOverrides || {};
+      const sanitizedIncoming = action.payload
+        .map(sanitizeProduct)
+        .filter((p) => !isProductExplicitlyUnpublished(p, overrides));
       const incomingKeys = new Set<string>();
       sanitizedIncoming.forEach((p) => {
         incomingKeys.add(p.id);
@@ -324,7 +374,9 @@ export const {
   quickUpdateStock,
   adjustStock,
   publishProduct,
+  unpublishProduct,
   bulkPublish,
+  bulkUnpublish,
   bulkUpdateStatus,
   bulkDelete,
   setDraftedProducts,

@@ -12,6 +12,7 @@ interface BulkActionToolbarProps {
   onClearSelection: () => void;
   onUpdateStatus: (status: ProductStatus) => void;
   onBulkPublish: () => void;
+  onBulkUnpublish?: () => void;
   onDeleteSelected: () => void;
   onExportSelected: () => void;
 }
@@ -22,6 +23,7 @@ export const BulkActionToolbar: React.FC<BulkActionToolbarProps> = ({
   onClearSelection,
   onUpdateStatus,
   onBulkPublish,
+  onBulkUnpublish,
   onDeleteSelected,
   onExportSelected,
 }) => {
@@ -50,6 +52,18 @@ export const BulkActionToolbar: React.FC<BulkActionToolbarProps> = ({
         >
           {t('bulk.publish')} ({selectedCount})
         </Button>
+
+        {onBulkUnpublish && (
+          <Button
+            size="sm"
+            variant="outline"
+            className="border-slate-700 text-slate-200 hover:bg-slate-800 text-xs h-8"
+            onClick={onBulkUnpublish}
+            leftIcon={<Icons.EyeOff size={14} />}
+          >
+            {t('bulk.unpublish')} ({selectedCount})
+          </Button>
+        )}
 
         <Button
           size="sm"
