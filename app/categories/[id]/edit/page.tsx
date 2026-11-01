@@ -57,13 +57,18 @@ export default function EditCategoryPage() {
         category_slug: data.slug,
         category_description: data.description,
         category_thumb: data.image,
-        parent_id: data.parentId,
+        parent_id: data.parent_id ?? null,
       });
 
       dispatch(
         updateCategory({
           ...category,
-          ...data,
+          name: data.name,
+          slug: data.slug,
+          description: data.description,
+          image: data.image,
+          category_active: data.category_active,
+          parentId: data.parent_id ? String(data.parent_id) : null,
         })
       );
       dispatch(

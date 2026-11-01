@@ -16,14 +16,8 @@ export interface CreateCategoryPayload {
   category_slug?: string;
   category_active?: boolean;
   category_thumb?: string;
-  category_image?: string;
   parent_id?: string | number | null;
   sort_order?: number;
-  name?: string;
-  slug?: string;
-  description?: string;
-  image?: string;
-  icon?: string;
 }
 
 export interface UpdateCategoryPayload {
@@ -172,9 +166,7 @@ export function buildCreateCategoryPayload(input: {
   slug?: string;
   description?: string;
   image?: string;
-  icon?: string;
-  parentId?: string | null;
-  parentCategoryId?: string | number;
+  parent_id?: string | number | null;
   category_active?: boolean;
 }): CreateCategoryPayload {
   const trimmedName = input.name.trim();
@@ -190,27 +182,31 @@ export function buildCreateCategoryPayload(input: {
 
   const trimmedThumb = input.image?.trim() || "";
   const trimmedDesc = input.description?.trim() || "";
-  const resolvedParentId =
-    input.parentId && input.parentId.trim() && input.parentId.trim() !== "null"
-      ? input.parentId.trim()
+
+  const rawParent = input.parent_id;
+  const cleanParent =
+    rawParent !== null &&
+    rawParent !== undefined &&
+    String(rawParent).trim() !== "" &&
+    String(rawParent).trim() !== "null" &&
+    String(rawParent).trim() !== "0" &&
+    String(rawParent).trim() !== "root"
+      ? (typeof rawParent === "number" ? rawParent : String(rawParent).trim())
       : null;
 
-  const resolvedParentKey = input.parentCategoryId ?? resolvedParentId;
-
-  return {
+  const payload: CreateCategoryPayload = {
     category_name: trimmedName,
     category_slug: resolvedSlug,
     category_description: trimmedDesc,
     category_thumb: trimmedThumb,
-    category_image: trimmedThumb,
     category_active: input.category_active ?? true,
-    parent_id: resolvedParentKey,
-    name: trimmedName,
-    slug: resolvedSlug,
-    description: trimmedDesc,
-    ...(trimmedThumb ? { image: trimmedThumb } : {}),
-    ...(input.icon ? { icon: input.icon } : {}),
   };
+
+  if (cleanParent !== null) {
+    payload.parent_id = cleanParent;
+  }
+
+  return payload;
 }
 
 export function extractCreatedCategory(

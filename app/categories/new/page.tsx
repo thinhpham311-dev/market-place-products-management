@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { addCategory, setCategories } from '@/store/slices/categoriesSlice';
-import { setActiveTab, showToast } from '@/store/slices/uiSlice';
+import { setActiveTab, showErrorToast, showToast } from '@/store/slices/uiSlice';
 import {
   apiCreateCategory,
   apiGetCategoryAllList,
@@ -68,7 +68,7 @@ export default function NewCategoryPage() {
             category_slug: mappedFromApi.slug || data.slug,
             category_description: mappedFromApi.description ?? data.description,
             category_thumb: mappedFromApi.image || data.image,
-            parent_id: mappedFromApi.parentId ?? data.parentId ?? null,
+            parent_id: mappedFromApi.parentId ?? data.parent_id ?? null,
           });
           mappedFromApi.category_active = true;
         } catch {
@@ -84,7 +84,7 @@ export default function NewCategoryPage() {
           slug: mappedFromApi?.slug || data.slug,
           description: mappedFromApi?.description ?? data.description,
           image: mappedFromApi?.image || data.image,
-          parentId: mappedFromApi?.parentId || data.parentId || null,
+          parentId: mappedFromApi?.parentId || (data.parent_id ? String(data.parent_id) : null) || null,
           category_active:
             mappedFromApi?.category_active ?? data.category_active ?? true,
           productCount: mappedFromApi?.productCount ?? 0,
@@ -93,7 +93,7 @@ export default function NewCategoryPage() {
 
       dispatch(
         showToast(
-          `Đã tạo danh mục "${mappedFromApi?.name || data.name}" thành công (/v1/api/category/create)!`
+          `Đã tạo danh mục "${mappedFromApi?.name || data.name}" thành công!`
         )
       );
       dispatch(setActiveTab('categories'));
@@ -101,8 +101,8 @@ export default function NewCategoryPage() {
     } catch (err: unknown) {
       const errMessage =
         (err as { message?: string })?.message ||
-        'Không thể tạo danh mục qua API (/v1/api/category/create). Vui lòng thử lại.';
-      dispatch(showToast(errMessage));
+        'Không thể tạo danh mục. Vui lòng thử lại.';
+      dispatch(showErrorToast(errMessage));
       throw err;
     } finally {
       setIsSubmitting(false);

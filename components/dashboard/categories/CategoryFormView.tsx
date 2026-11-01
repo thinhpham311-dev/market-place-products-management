@@ -13,8 +13,7 @@ export interface CategoryFormSubmitData {
   slug: string;
   description: string;
   image?: string;
-  parentId?: string | null;
-  parentCategoryId?: string | number;
+  parent_id?: string | number | null;
   category_active: boolean;
 }
 
@@ -124,13 +123,15 @@ export const CategoryFormView: React.FC<CategoryFormViewProps> = ({
         uniqueSlug = `${baseSlug}-${counter}`;
       }
 
+      const resolvedParent =
+        selectedParent?.id || selectedParent?.categoryId || (parentId.trim() || null);
+
       await onSubmit({
         name: trimmedName,
         slug: uniqueSlug,
         description: description.trim(),
         image: image.trim() || undefined,
-        parentId: parentId.trim() || null,
-        parentCategoryId: selectedParent?.categoryId,
+        parent_id: resolvedParent,
         category_active: categoryActive,
       });
     } catch (err: unknown) {

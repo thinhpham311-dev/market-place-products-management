@@ -4,6 +4,12 @@ export const CATEGORY_BRAND_ALLOWED_ROLES = [
   'SUPER_ADMIN',
   'CATEGORY_MANAGER',
   'CATALOG_SPECIALIST',
+  'ADMIN',
+  'OWNER',
+  'STORE_OWNER',
+  'SHOP',
+  'CHỦ_GIAN_HÀNG',
+  'QUẢN_TRỊ_VIÊN',
 ] as const;
 
 export type CategoryBrandRole = (typeof CATEGORY_BRAND_ALLOWED_ROLES)[number];

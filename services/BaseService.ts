@@ -136,7 +136,7 @@ BaseService.interceptors.request.use(
       config.headers["authorization"] = accessToken;
     }
 
-    if (reqUrl.includes("/shop/refreshtoken") && (refreshToken || accessToken)) {
+    if (refreshToken || (reqUrl.includes("/shop/refreshtoken") && accessToken)) {
       config.headers[REQUEST_HEADER_REFRESH_TOKEN] =
         refreshToken || accessToken;
     }
@@ -145,9 +145,8 @@ BaseService.interceptors.request.use(
     const jwtClientId = extractUserIdFromJwt(accessToken);
     const clientId =
       jwtClientId ||
-      (storedClientId && storedClientId !== "66f1a2b3c4d5e6f7a8b9c0d1"
-        ? storedClientId
-        : storedClientId);
+      storedClientId ||
+      "66f1a2b3c4d5e6f7a8b9c0d1";
 
     if (clientId) {
       config.headers[REQUEST_HEADER_CLIENT_ID] = clientId;
