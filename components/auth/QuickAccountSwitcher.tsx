@@ -9,11 +9,15 @@ import { canManageCategoryAndBrand } from '@/lib/auth/permissions';
 interface QuickAccountSwitcherProps {
   accounts: RegisteredAccount[];
   onSelectAccount: (acc: RegisteredAccount) => void;
+  isLoading?: boolean;
+  selectedEmail?: string;
 }
 
 export const QuickAccountSwitcher: React.FC<QuickAccountSwitcherProps> = ({
   accounts,
   onSelectAccount,
+  isLoading = false,
+  selectedEmail,
 }) => {
   const { t } = useTranslation();
 
@@ -31,13 +35,20 @@ export const QuickAccountSwitcher: React.FC<QuickAccountSwitcherProps> = ({
       <div className="grid grid-cols-1 gap-2 max-h-72 overflow-y-auto custom-scrollbar pr-1">
         {accounts.map((acc) => {
           const hasCategoryBrandAccess = canManageCategoryAndBrand(acc.user);
+          const isThisAccountLoading =
+            isLoading && selectedEmail?.toLowerCase() === acc.email.toLowerCase();
 
           return (
             <button
               key={acc.email}
               type="button"
+              disabled={isLoading}
               onClick={() => onSelectAccount(acc)}
-              className="w-full flex items-center justify-between p-2.5 rounded-xl border border-slate-200/80 dark:border-slate-800 hover:border-indigo-500/50 hover:bg-indigo-50/40 dark:hover:bg-indigo-950/20 transition-all text-left group cursor-pointer"
+              className={`w-full flex items-center justify-between p-2.5 rounded-xl border border-slate-200/80 dark:border-slate-800 transition-all text-left group ${
+                isLoading
+                  ? 'opacity-60 cursor-not-allowed'
+                  : 'hover:border-indigo-500/50 hover:bg-indigo-50/40 dark:hover:bg-indigo-950/20 cursor-pointer'
+              } ${isThisAccountLoading ? 'border-indigo-500 ring-2 ring-indigo-500/20' : ''}`}
             >
               <div className="flex items-center gap-3 min-w-0">
                 <div
@@ -68,10 +79,17 @@ export const QuickAccountSwitcher: React.FC<QuickAccountSwitcherProps> = ({
                   </div>
                 </div>
               </div>
-              <Icons.ChevronRight
-                size={16}
-                className="text-slate-400 group-hover:text-indigo-600 group-hover:translate-x-0.5 transition-all shrink-0 ml-2"
-              />
+              {isThisAccountLoading ? (
+                <Icons.RefreshCw
+                  size={16}
+                  className="animate-spin text-indigo-600 shrink-0 ml-2"
+                />
+              ) : (
+                <Icons.ChevronRight
+                  size={16}
+                  className="text-slate-400 group-hover:text-indigo-600 group-hover:translate-x-0.5 transition-all shrink-0 ml-2"
+                />
+              )}
             </button>
           );
         })}

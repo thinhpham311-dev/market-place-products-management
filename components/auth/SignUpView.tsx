@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
+import { useHydrated } from '@/store/StoreProvider';
 import { onSignInSuccess } from '@/store/auth/sessionSlice';
 import { setUser, UserState } from '@/store/auth/userSlice';
 import {
@@ -76,6 +77,17 @@ export const SignUpView: React.FC = () => {
   const accounts = useAppSelector(
     (s) => s.auth.accounts?.items ?? DEFAULT_ACCOUNTS
   );
+  const signedIn = useAppSelector((s) => s.auth.session.signedIn);
+  const currentToken = useAppSelector((s) => s.auth.session.token);
+  const isHydrated = useHydrated();
+
+  useEffect(() => {
+    if (!isHydrated) return;
+    if (signedIn && currentToken) {
+      const rawRedirectUrl = searchParams.get('redirectUrl') || '/?tab=overview';
+      router.replace(rawRedirectUrl);
+    }
+  }, [isHydrated, signedIn, currentToken, searchParams, router]);
 
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');

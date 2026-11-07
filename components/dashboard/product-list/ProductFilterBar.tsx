@@ -1,7 +1,8 @@
 'use client';
 
-import React from 'react';
-import { ProductCategory, ProductFilterState, ProductStatus } from '@/types/product';
+import React, { useMemo } from 'react';
+import { ProductCategory, Product, ProductFilterState, ProductStatus } from '@/types/product';
+import { buildCategoryTree } from '@/services/CategoryService';
 import { useTranslation } from '@/lib/i18n/useTranslation';
 import { Icons } from '@/components/ui/Icons';
 import { Button } from '@/components/ui/Button';
@@ -23,6 +24,7 @@ interface ProductFilterBarProps {
   filterCategory: string;
   setFilterCategory: (category: string) => void;
   categories: ProductCategory[];
+  products?: Product[];
   filterStockStatus: 'all' | 'in_stock' | 'low_stock' | 'out_of_stock';
   setFilterStockStatus: (stock: 'all' | 'in_stock' | 'low_stock' | 'out_of_stock') => void;
   sortBy: ProductFilterState['sortBy'];
@@ -40,6 +42,7 @@ export const ProductFilterBar: React.FC<ProductFilterBarProps> = ({
   filterCategory,
   setFilterCategory,
   categories,
+  products = [],
   filterStockStatus,
   setFilterStockStatus,
   sortBy,
@@ -48,6 +51,84 @@ export const ProductFilterBar: React.FC<ProductFilterBarProps> = ({
   onResetPage,
 }) => {
   const { t, tc } = useTranslation();
+
+  const totalProductCount = products?.length ?? 0;
+
+  // Aggregate products belonging to each category (including descendants in category tree)
+  const dropdownCategories = useMemo(() => {
+    const tree = buildCategoryTree(categories);
+
+    const collectCategoryKeys = (node: ProductCategory, keys = new Set<string>()): Set<string> => {
+      keys.add(String(node.id));
+      if (node.categoryId !== undefined && node.categoryId !== null) {
+        keys.add(String(node.categoryId));
+      }
+      if (node.name) {
+        keys.add(String(node.name).trim().toLowerCase());
+      }
+      if (node.slug) {
+        keys.add(String(node.slug).trim().toLowerCase());
+      }
+      if (node.children && node.children.length > 0) {
+        for (const child of node.children) {
+          collectCategoryKeys(child, keys);
+        }
+      }
+      return keys;
+    };
+
+    const countProductsForKeys = (keys: Set<string>): number => {
+      if (!products || products.length === 0) return 0;
+      return products.filter((p) => {
+        if (p.categoryId && keys.has(String(p.categoryId))) return true;
+        if (p.category) {
+          const s = String(p.category).trim();
+          if (keys.has(s) || keys.has(s.toLowerCase())) return true;
+        }
+        if (Array.isArray(p.product_category)) {
+          return p.product_category.some((cid) => {
+            if (typeof cid === 'object' && cid !== null) {
+              const objId = (cid as any).id || (cid as any)._id;
+              const objName = (cid as any).name || (cid as any).category_name;
+              return (
+                (objId && keys.has(String(objId))) ||
+                (objName && (keys.has(String(objName)) || keys.has(String(objName).toLowerCase())))
+              );
+            }
+            const s = String(cid).trim();
+            return s && s !== '[object Object]' && (keys.has(s) || keys.has(s.toLowerCase()));
+          });
+        }
+        return false;
+      }).length;
+    };
+
+    const items: Array<{
+      id: string;
+      name: string;
+      level: number;
+      productCount: number;
+    }> = [];
+
+    const traverse = (nodes: ProductCategory[], level = 0) => {
+      for (const node of nodes) {
+        const keys = collectCategoryKeys(node);
+        const aggregatedCount = countProductsForKeys(keys);
+        items.push({
+          id: node.id,
+          name: node.name,
+          level,
+          productCount: aggregatedCount,
+        });
+        if (node.children && node.children.length > 0) {
+          traverse(node.children, level + 1);
+        }
+      }
+    };
+
+    traverse(tree);
+    return items;
+  }, [categories, products]);
 
   return (
     <div className="sticky top-16 z-20 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md rounded-2xl border border-slate-200/80 dark:border-slate-800 p-4 shadow-sm space-y-4">
@@ -159,12 +240,14 @@ export const ProductFilterBar: React.FC<ProductFilterBarProps> = ({
               setFilterCategory(e.target.value);
               onResetPage();
             }}
-            className="w-full text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-slate-800 dark:text-slate-200 outline-none focus:border-indigo-500"
+            className="w-full text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-slate-800 dark:text-slate-200 outline-none focus:border-indigo-500 font-medium"
           >
-            <option value="all">{t('products.all_categories')}</option>
-            {categories.map((cat) => (
-              <option key={cat.id} value={cat.id}>
-                {tc(cat.name)} ({cat.productCount})
+            <option value="all">
+              {t('products.all_categories')} ({totalProductCount})
+            </option>
+            {dropdownCategories.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.level > 0 ? `${'\u00A0\u00A0'.repeat(item.level)}↳ ` : ''}{tc(item.name)} ({item.productCount})
               </option>
             ))}
           </select>
@@ -202,6 +285,7 @@ export const ProductFilterBar: React.FC<ProductFilterBarProps> = ({
             onChange={(e) => setSortBy(e.target.value as ProductFilterState['sortBy'])}
             className="w-full text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-slate-800 dark:text-slate-200 outline-none focus:border-indigo-500"
           >
+            <option value="priority">{t('products.sort_priority') || 'Độ ưu tiên (Kéo thả)'}</option>
             <option value="created">{t('products.sort_newest')}</option>
             <option value="sold">{t('products.sort_sold')}</option>
             <option value="price_desc">{t('products.sort_price_desc')}</option>

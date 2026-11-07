@@ -16,6 +16,16 @@ import {
   extractCategoryArray,
   mapRawCategoryList,
 } from '@/services/CategoryService';
+import {
+  apiGetDraftedSpuList,
+  apiGetPublishedSpuList,
+  extractSpuArray,
+  mapSpuToProduct,
+} from '@/services/ProductService';
+import {
+  setDraftedProducts,
+  setPublishedProducts,
+} from '@/store/slices/productsSlice';
 import { useHydrated } from '@/store/StoreProvider';
 import { ProductCategory } from '@/types/product';
 import { CategoryManager } from '@/components/dashboard/CategoryManager';
@@ -61,6 +71,37 @@ export default function CategoriesPage() {
   useEffect(() => {
     void fetchCategories();
   }, [fetchCategories]);
+
+  useEffect(() => {
+    if (!isHydrated || !signedIn) return;
+    if (products.length === 0) {
+      void Promise.allSettled([
+        apiGetPublishedSpuList(),
+        apiGetDraftedSpuList(),
+      ]).then(([pubRes, draftRes]) => {
+        if (pubRes.status === 'fulfilled') {
+          const rawPub = extractSpuArray(pubRes.value.data);
+          if (Array.isArray(rawPub)) {
+            dispatch(
+              setPublishedProducts(
+                rawPub.map((item, idx) => mapSpuToProduct(item, idx, 'active'))
+              )
+            );
+          }
+        }
+        if (draftRes.status === 'fulfilled') {
+          const rawDraft = extractSpuArray(draftRes.value.data);
+          if (Array.isArray(rawDraft)) {
+            dispatch(
+              setDraftedProducts(
+                rawDraft.map((item, idx) => mapSpuToProduct(item, idx, 'draft'))
+              )
+            );
+          }
+        }
+      });
+    }
+  }, [isHydrated, signedIn, products.length, dispatch]);
 
   const targetCategory = categories.find((c) => c.id === pendingCategoryId);
   const targetProductCount = targetCategory

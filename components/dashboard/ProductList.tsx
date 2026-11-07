@@ -3,8 +3,12 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useHydrated } from '@/store/StoreProvider';
+import { useAppDispatch } from '@/store/hooks';
+import { reorderProducts } from '@/store/slices/productsSlice';
+import { showToast } from '@/store/slices/uiSlice';
 import { Product, ProductCategory, ProductStatus, ProductFilterState } from '@/types/product';
 import { isProductPublished } from '@/services/ProductService';
+import { buildCategoryTree } from '@/services/CategoryService';
 import { BulkActionToolbar } from './BulkActionToolbar';
 import { ProductFilterBar } from './product-list/ProductFilterBar';
 import { ProductTableView } from './product-list/ProductTableView';
@@ -61,6 +65,7 @@ export const ProductList: React.FC<ProductListProps> = ({
   onBulkDelete,
   onOpenCreateProduct,
 }) => {
+  const dispatch = useAppDispatch();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -122,6 +127,51 @@ export const ProductList: React.FC<ProductListProps> = ({
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [pageSize, setPageSize] = useState<number>(10);
 
+  // Category keys for hierarchically matching products in selected category & its subcategories
+  const selectedCategoryKeys = useMemo(() => {
+    if (filterCategory === 'all') return null;
+    const tree = buildCategoryTree(categories);
+
+    const findNode = (nodes: ProductCategory[]): ProductCategory | null => {
+      for (const n of nodes) {
+        if (
+          String(n.id) === filterCategory ||
+          (n.categoryId !== undefined && String(n.categoryId) === filterCategory)
+        ) {
+          return n;
+        }
+        if (n.children && n.children.length > 0) {
+          const match = findNode(n.children);
+          if (match) return match;
+        }
+      }
+      return null;
+    };
+
+    const targetNode = findNode(tree);
+    const keys = new Set<string>([filterCategory]);
+
+    const collectKeys = (node: ProductCategory) => {
+      keys.add(String(node.id));
+      if (node.categoryId !== undefined && node.categoryId !== null) {
+        keys.add(String(node.categoryId));
+      }
+      if (node.name) keys.add(String(node.name).trim().toLowerCase());
+      if (node.slug) keys.add(String(node.slug).trim().toLowerCase());
+      if (node.children && node.children.length > 0) {
+        for (const child of node.children) {
+          collectKeys(child);
+        }
+      }
+    };
+
+    if (targetNode) {
+      collectKeys(targetNode);
+    }
+
+    return keys;
+  }, [categories, filterCategory]);
+
   // Filter & Sort logic
   const filteredProducts = useMemo(() => {
     return products
@@ -135,8 +185,25 @@ export const ProductList: React.FC<ProductListProps> = ({
           if (!matchName && !matchSku && !matchBrand && !matchBarcode) return false;
         }
 
-        if (filterCategory !== 'all' && p.categoryId !== filterCategory) {
-          return false;
+        if (selectedCategoryKeys) {
+          const matchesCategory =
+            (p.categoryId && selectedCategoryKeys.has(String(p.categoryId))) ||
+            (p.category && (selectedCategoryKeys.has(String(p.category)) || selectedCategoryKeys.has(String(p.category).toLowerCase()))) ||
+            (Array.isArray(p.product_category) &&
+              p.product_category.some((cid) => {
+                if (typeof cid === 'object' && cid !== null) {
+                  const objId = (cid as any).id || (cid as any)._id;
+                  const objName = (cid as any).name || (cid as any).category_name;
+                  return (
+                    (objId && selectedCategoryKeys.has(String(objId))) ||
+                    (objName && (selectedCategoryKeys.has(String(objName)) || selectedCategoryKeys.has(String(objName).toLowerCase())))
+                  );
+                }
+                const s = String(cid).trim();
+                return s && s !== '[object Object]' && (selectedCategoryKeys.has(s) || selectedCategoryKeys.has(s.toLowerCase()));
+              }));
+
+          if (!matchesCategory) return false;
         }
 
         if (filterStatus !== 'all' && p.status !== filterStatus) {
@@ -152,6 +219,7 @@ export const ProductList: React.FC<ProductListProps> = ({
         return true;
       })
       .sort((a, b) => {
+        if (sortBy === 'priority') return (a.priority ?? 9999) - (b.priority ?? 9999);
         if (sortBy === 'price_asc') return a.price - b.price;
         if (sortBy === 'price_desc') return b.price - a.price;
         if (sortBy === 'stock') return b.stock - a.stock;
@@ -160,6 +228,14 @@ export const ProductList: React.FC<ProductListProps> = ({
         return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
       });
   }, [products, searchQuery, filterCategory, filterStatus, filterStockStatus, sortBy]);
+
+  const handleReorderProducts = (sourceId: string, targetId: string) => {
+    dispatch(reorderProducts({ sourceId, targetId }));
+    if (sortBy !== 'priority') {
+      setSortBy('priority');
+    }
+    dispatch(showToast('Đã cập nhật thứ tự ưu tiên của sản phẩm!'));
+  };
 
   // Paginated slice
   const totalPages = Math.ceil(filteredProducts.length / pageSize) || 1;
@@ -217,6 +293,7 @@ export const ProductList: React.FC<ProductListProps> = ({
         filterCategory={filterCategory}
         setFilterCategory={setFilterCategory}
         categories={categories}
+        products={products}
         filterStockStatus={filterStockStatus}
         setFilterStockStatus={setFilterStockStatus}
         sortBy={sortBy}
@@ -253,6 +330,7 @@ export const ProductList: React.FC<ProductListProps> = ({
           onOpenPublishModal={onOpenPublishModal}
           onUnpublishProduct={onUnpublishProduct}
           onQuickUpdateStock={onQuickUpdateStock}
+          onReorder={handleReorderProducts}
         />
       ) : (
         <ProductGridView
@@ -266,6 +344,7 @@ export const ProductList: React.FC<ProductListProps> = ({
           onDeleteProduct={onDeleteProduct}
           onOpenPublishModal={onOpenPublishModal}
           onUnpublishProduct={onUnpublishProduct}
+          onReorder={handleReorderProducts}
         />
       )}
 

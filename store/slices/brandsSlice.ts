@@ -107,6 +107,32 @@ export const brandsSlice = createSlice({
     setBrands(state, action: PayloadAction<ProductBrand[]>) {
       state.items = action.payload;
     },
+    // Drag and Drop reorder brands by priority
+    reorderBrands(
+      state,
+      action: PayloadAction<ProductBrand[] | { sourceId: string; targetId: string }>
+    ) {
+      const payload = action.payload;
+      if (Array.isArray(payload)) {
+        state.items = payload.map((b, idx) => ({
+          ...b,
+          priority: idx + 1,
+        }));
+        return;
+      }
+
+      const { sourceId, targetId } = payload;
+      const srcIdx = state.items.findIndex((b) => b.id === sourceId);
+      const destIdx = state.items.findIndex((b) => b.id === targetId);
+
+      if (srcIdx >= 0 && destIdx >= 0 && srcIdx !== destIdx) {
+        const [moved] = state.items.splice(srcIdx, 1);
+        state.items.splice(destIdx, 0, moved);
+        state.items.forEach((b, idx) => {
+          b.priority = idx + 1;
+        });
+      }
+    },
   },
 });
 
@@ -116,6 +142,7 @@ export const {
   deleteBrand,
   toggleBrandStatus,
   setBrands,
+  reorderBrands,
 } = brandsSlice.actions;
 
 export default brandsSlice.reducer;

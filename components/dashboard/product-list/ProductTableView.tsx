@@ -24,6 +24,7 @@ interface ProductTableViewProps {
   onOpenPublishModal: (product: Product) => void;
   onUnpublishProduct?: (product: Product) => void;
   onQuickUpdateStock: (id: string, newStock: number) => void;
+  onReorder?: (sourceId: string, targetId: string) => void;
 }
 
 export const ProductTableView: React.FC<ProductTableViewProps> = ({
@@ -42,10 +43,48 @@ export const ProductTableView: React.FC<ProductTableViewProps> = ({
   onOpenPublishModal,
   onUnpublishProduct,
   onQuickUpdateStock,
+  onReorder,
 }) => {
   const { t, tp, formatCurrency, formatNumber } = useTranslation();
   const [editingStockId, setEditingStockId] = useState<string | null>(null);
   const [inlineStockVal, setInlineStockVal] = useState<number>(0);
+  const [draggedId, setDraggedId] = useState<string | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
+
+  const handleDragStart = (e: React.DragEvent, id: string) => {
+    e.dataTransfer.setData('text/plain', id);
+    e.dataTransfer.effectAllowed = 'move';
+    setDraggedId(id);
+  };
+
+  const handleDragOver = (e: React.DragEvent, id: string) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (draggedId && draggedId !== id && dragOverId !== id) {
+      setDragOverId(id);
+    }
+  };
+
+  const handleDragLeave = (id: string) => {
+    if (dragOverId === id) {
+      setDragOverId(null);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent, targetId: string) => {
+    e.preventDefault();
+    const sourceId = e.dataTransfer.getData('text/plain') || draggedId;
+    if (sourceId && targetId && sourceId !== targetId) {
+      onReorder?.(sourceId, targetId);
+    }
+    setDraggedId(null);
+    setDragOverId(null);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedId(null);
+    setDragOverId(null);
+  };
 
   const handleSaveStock = (id: string) => {
     onQuickUpdateStock(id, Math.max(0, inlineStockVal));
@@ -66,6 +105,12 @@ export const ProductTableView: React.FC<ProductTableViewProps> = ({
                   className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 w-4 h-4 cursor-pointer"
                 />
               </th>
+              <th className="py-3.5 px-3 w-16 text-center font-semibold text-slate-500 dark:text-slate-400">
+                <span className="flex items-center justify-center gap-1">
+                  <Icons.ArrowUpDown size={12} className="text-slate-400" />
+                  <span>{t('table.col_priority') || 'Ưu tiên'}</span>
+                </span>
+              </th>
               <th className="py-3.5 px-4 font-semibold">{t('table.col_product')}</th>
               <th className="py-3.5 px-4 font-semibold">{t('table.col_price')}</th>
               <th className="py-3.5 px-4 font-semibold">{t('table.col_stock')}</th>
@@ -77,19 +122,30 @@ export const ProductTableView: React.FC<ProductTableViewProps> = ({
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-            {products.map((p) => {
+            {products.map((p, index) => {
               const isSelected = selectedIds.includes(p.id);
               const isLowStock = p.stock <= p.lowStockThreshold && p.stock > 0;
               const isOutOfStock = p.stock === 0;
               const isDraft = p.status === 'draft';
               const isPublished = isProductPublished(p);
               const translatedName = tp(p.name);
+              const isDraggingThis = draggedId === p.id;
+              const isOverThis = dragOverId === p.id && draggedId !== p.id;
 
               return (
                 <tr
                   key={p.id}
-                  className={`group hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors ${
-                    isSelected ? 'bg-indigo-50/40 dark:bg-indigo-950/20' : ''
+                  onDragOver={(e) => handleDragOver(e, p.id)}
+                  onDragLeave={() => handleDragLeave(p.id)}
+                  onDrop={(e) => handleDrop(e, p.id)}
+                  className={`group transition-all ${
+                    isDraggingThis
+                      ? 'opacity-30 bg-indigo-50/40 dark:bg-indigo-950/20'
+                      : isOverThis
+                        ? 'border-t-2 border-indigo-600 bg-indigo-50/60 dark:bg-indigo-950/40'
+                        : isSelected
+                          ? 'bg-indigo-50/40 dark:bg-indigo-950/20'
+                          : 'hover:bg-slate-50/70 dark:hover:bg-slate-800/40'
                   }`}
                 >
                   {/* Checkbox */}
@@ -100,6 +156,22 @@ export const ProductTableView: React.FC<ProductTableViewProps> = ({
                       onChange={() => onToggleSelect(p.id)}
                       className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 w-4 h-4 cursor-pointer"
                     />
+                  </td>
+
+                  {/* Drag Handle & Priority badge */}
+                  <td className="py-3 px-3 text-center">
+                    <div
+                      draggable
+                      onDragStart={(e) => handleDragStart(e, p.id)}
+                      onDragEnd={handleDragEnd}
+                      className="inline-flex items-center gap-1 px-1.5 py-1 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200/60 dark:border-slate-700/60 text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:border-indigo-300 dark:hover:border-indigo-600 transition-all cursor-grab active:cursor-grabbing select-none"
+                      title="Kéo thả để sắp xếp thứ tự ưu tiên"
+                    >
+                      <Icons.GripVertical size={13} className="shrink-0" />
+                      <span className="text-[10px] font-mono font-bold text-slate-600 dark:text-slate-300">
+                        #{p.priority ?? index + 1}
+                      </span>
+                    </div>
                   </td>
 
                   {/* Product Thumbnail & Info */}

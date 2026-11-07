@@ -30,6 +30,12 @@ export const sessionSlice = createSlice({
     },
     setToken: (state, action: PayloadAction<string>) => {
       state.token = action.payload;
+      if (action.payload) {
+        state.signedIn = true;
+      }
+    },
+    setSignedIn: (state, action: PayloadAction<boolean>) => {
+      state.signedIn = action.payload;
     },
     setRefreshToken: (state, action: PayloadAction<string>) => {
       state.refreshToken = action.payload;
@@ -46,6 +52,7 @@ export const {
   setToken,
   setRefreshToken,
   setKeepMeSignedIn,
+  setSignedIn,
 } = sessionSlice.actions;
 
 export default sessionSlice.reducer;

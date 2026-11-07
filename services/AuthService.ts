@@ -1,3 +1,4 @@
+import axios from "axios";
 import ApiService from "./ApiService";
 import { IUser } from "@/interfaces/user";
 import {
@@ -9,7 +10,7 @@ import {
 
 export const NEXT_SIGNIN_API_ENDPOINT = "/api/shop/signin";
 export const NEXT_SIGNOUT_API_ENDPOINT = "/api/shop/signout";
-export const NEXT_REFRESH_TOKEN_API_ENDPOINT = "/api/shop/refreshtoken";
+export const NEXT_REFRESH_TOKEN_API_ENDPOINT = "/v1/api/shop/refreshtoken";
 
 export async function apiSignIn(data: IUser) {
   return ApiService.fetchData({
@@ -29,6 +30,7 @@ export async function apiRefreshToken(data?: {
   clientId?: string;
 }) {
   const headers: Record<string, string> = {
+    "Content-Type": "application/json",
     [REQUEST_HEADER_API_KEY]:
       process.env.NEXT_PUBLIC_API_KEY || NEXT_PUBLIC_API_KEY,
   };
@@ -46,11 +48,9 @@ export async function apiRefreshToken(data?: {
     headers[REQUEST_HEADER_CLIENT_ID] = data.clientId;
   }
 
-  return ApiService.fetchData({
-    url: "/shop/refreshtoken",
-    method: "post",
-    data: data || {},
+  return axios.post(NEXT_REFRESH_TOKEN_API_ENDPOINT, data || {}, {
     headers,
+    withCredentials: true,
   });
 }
 

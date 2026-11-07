@@ -1,15 +1,16 @@
 'use client';
 
 import React, { useCallback, useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { ProductCategory, Product } from '@/types/product';
 import { buildCategoryTree } from '@/services/CategoryService';
 import { useTranslation } from '@/lib/i18n/useTranslation';
-import { useAppSelector } from '@/store/hooks';
+import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { Icons } from '@/components/ui/Icons';
 import { Button } from '@/components/ui/Button';
 import { CategoryCard } from './categories/CategoryCard';
 import { BrandManager } from './categories/BrandManager';
+import { ProductList } from '@/components/dashboard/ProductList';
 import { canManageCategoryAndBrand } from '@/lib/auth/permissions';
 
 interface CategoryManagerProps {
@@ -32,11 +33,16 @@ export const CategoryManager: React.FC<CategoryManagerProps> = ({
   onDeleteCategory,
 }) => {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const dispatch = useAppDispatch();
   const { t } = useTranslation();
   const user = useAppSelector((s) => s.auth.user);
   const canManage = canManageCategoryAndBrand(user);
 
-  const [currentSection, setCurrentSection] = useState<'categories' | 'brands'>('categories');
+  const initialSection = searchParams.get('section');
+  const [currentSection, setCurrentSection] = useState<'categories' | 'brands' | 'products'>(
+    initialSection === 'brands' || initialSection === 'products' ? initialSection : 'categories'
+  );
   const [layoutMode, setLayoutMode] = useState<'tree' | 'grid'>('tree');
   const [activeFilter, setActiveFilter] = useState<'all' | 'inactive' | 'active'>('all');
   const [expandSeed, setExpandSeed] = useState<{ version: number; expanded: boolean }>({
@@ -181,10 +187,75 @@ export const CategoryManager: React.FC<CategoryManagerProps> = ({
           <Icons.Tag size={15} />
           <span>Thương hiệu (Brands)</span>
         </button>
+
+        <button
+          type="button"
+          onClick={() => setCurrentSection('products')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+            currentSection === 'products'
+              ? 'bg-indigo-600 text-white shadow-md shadow-indigo-500/20'
+              : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border border-slate-200/80 dark:border-slate-800'
+          }`}
+        >
+          <Icons.Package size={15} />
+          <span>Danh sách sản phẩm</span>
+          <span
+            className={`px-2 py-0.5 rounded-full text-[10px] font-mono ${
+              currentSection === 'products'
+                ? 'bg-white/20 text-white'
+                : 'bg-slate-100 dark:bg-slate-800 text-slate-500'
+            }`}
+          >
+            {products.length}
+          </span>
+        </button>
       </div>
 
       {currentSection === 'brands' ? (
         <BrandManager products={products} />
+      ) : currentSection === 'products' ? (
+        <div className="space-y-4">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm">
+            <div>
+              <div className="flex items-center gap-2.5 flex-wrap">
+                <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                  Danh sách sản phẩm ({products.length})
+                </h3>
+                <span className="px-2.5 py-0.5 text-[11px] font-semibold rounded-full bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200/60 dark:border-indigo-800/60">
+                  Phân quyền Category Manager
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                Xem và quản lý các sản phẩm theo từng danh mục phân cấp trong hệ thống
+              </p>
+            </div>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => router.push('/products/new')}
+              leftIcon={<Icons.Plus size={16} />}
+            >
+              Thêm sản phẩm mới
+            </Button>
+          </div>
+
+          <ProductList
+            products={products}
+            categories={categories}
+            searchQuery=""
+            onSelectProduct={(p) => router.push(`/products/${p.id}`)}
+            onEditProduct={(p) => router.push(`/products/${p.id}/edit`)}
+            onDeleteProduct={() => router.push('/products')}
+            onDuplicateProduct={() => router.push('/products/new')}
+            onToggleStatus={() => router.push('/products')}
+            onOpenPublishModal={(p) => router.push(`/products/${p.id}`)}
+            onQuickUpdateStock={() => {}}
+            onBulkUpdateStatus={() => {}}
+            onBulkPublish={() => {}}
+            onBulkDelete={() => {}}
+            onOpenCreateProduct={() => router.push('/products/new')}
+          />
+        </div>
       ) : (
         <>
           {/* Header & Add CTA */}

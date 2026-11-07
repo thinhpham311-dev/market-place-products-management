@@ -2,6 +2,11 @@ import axios from "axios";
 import { NextResponse } from "next/server";
 import { handleAxiosError } from "@/lib/http/handleAxiosError";
 import {
+  parseAuthCookies,
+  setAuthCookies,
+  clearAuthCookies,
+} from "@/lib/auth/authCookies";
+import {
   NEXT_PUBLIC_API_KEY,
   REQUEST_HEADER_API_KEY,
   REQUEST_HEADER_AUTH_KEY,
@@ -14,6 +19,21 @@ const API_NEXT =
   process.env.NEXT_PUBLIC_BASE_URL ||
   process.env.API_URL ||
   "http://localhost:3055";
+
+function extractUserIdFromJwt(token?: string): string {
+  if (!token) return "";
+  const parts = token.split(".");
+  if (parts.length !== 3) return "";
+  try {
+    const base64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+    const jsonPayload = Buffer.from(base64, "base64").toString("utf-8");
+    const parsed = JSON.parse(jsonPayload) as Record<string, unknown>;
+    const id = parsed.userId || parsed._id || parsed.id || parsed.sub;
+    return typeof id === "string" && id ? id : "";
+  } catch {
+    return "";
+  }
+}
 
 export async function GET(req: Request): Promise<Response> {
   const apiKey =
@@ -53,10 +73,13 @@ export async function POST(req: Request): Promise<Response> {
       req.headers.get(REQUEST_HEADER_API_KEY) ||
       NEXT_PUBLIC_API_KEY;
 
+    const cookies = parseAuthCookies(req);
+
     const rawAuthHeader =
       req.headers.get("authorization") ||
       req.headers.get(REQUEST_HEADER_AUTH_KEY) ||
       (typeof body?.accessToken === "string" ? body.accessToken : "") ||
+      cookies.accessToken ||
       "";
 
     const cleanAccessToken = rawAuthHeader.replace(/^Bearer\s+/i, "");
@@ -64,12 +87,16 @@ export async function POST(req: Request): Promise<Response> {
     const refreshToken =
       req.headers.get(REQUEST_HEADER_REFRESH_TOKEN) ||
       (typeof body?.refreshToken === "string" ? body.refreshToken : "") ||
+      cookies.refreshToken ||
       cleanAccessToken;
 
     const clientId =
       req.headers.get(REQUEST_HEADER_CLIENT_ID) ||
       (typeof body?.clientId === "string" ? body.clientId : "") ||
       (typeof body?.id === "string" ? body.id : "") ||
+      cookies.clientId ||
+      extractUserIdFromJwt(cleanAccessToken) ||
+      extractUserIdFromJwt(refreshToken) ||
       "";
 
     const headers: Record<string, string> = {
@@ -99,16 +126,45 @@ export async function POST(req: Request): Promise<Response> {
       { headers },
     );
 
-    return NextResponse.json(dataResponse);
+    const metadata =
+      dataResponse?.metadata || dataResponse?.data || dataResponse;
+    const newAccessToken =
+      metadata?.tokens?.accessToken ||
+      metadata?.accessToken ||
+      metadata?.token;
+    const newRefreshToken =
+      metadata?.tokens?.refreshToken || metadata?.refreshToken;
+    const resolvedClientId =
+      metadata?.shop?._id ||
+      metadata?.user?._id ||
+      metadata?.clientId ||
+      clientId;
+
+    const response = NextResponse.json(dataResponse);
+    if (newAccessToken || newRefreshToken) {
+      setAuthCookies(response, {
+        accessToken: newAccessToken ? String(newAccessToken) : undefined,
+        refreshToken: newRefreshToken ? String(newRefreshToken) : undefined,
+        clientId: resolvedClientId ? String(resolvedClientId) : undefined,
+      });
+    }
+
+    return response;
   } catch (error: unknown) {
     const normalized = handleAxiosError(error);
 
-    return NextResponse.json(
+    const errorResponse = NextResponse.json(
       {
         message: normalized.message,
         errors: normalized.errors,
       },
       { status: normalized.status },
     );
+
+    if (normalized.status === 401 || normalized.status === 403) {
+      clearAuthCookies(errorResponse);
+    }
+
+    return errorResponse;
   }
 }

@@ -169,20 +169,21 @@ export function buildCreateSpuPayload(product: Partial<Product>): CreateSpuPaylo
         }))
       : EXAMPLE_CREATE_SPU_PAYLOAD.product_variations;
 
+  const OBJECT_ID_REGEX = /^[0-9a-fA-F]{24}$/;
   const sku_list: SpuSkuItem[] =
     Array.isArray(product.sku_list) && product.sku_list.length > 0
       ? product.sku_list.map((item) => ({
           sku_tier_idx: Array.isArray(item.sku_tier_idx)
             ? item.sku_tier_idx.map((n) => Number(n) || 0)
             : [0],
-          sku_price: Number(item.sku_price) || 0,
-          sku_stock: Number(item.sku_stock) || 0,
+          sku_price: Math.max(Number(item.sku_price) || 0, price || 1),
+          sku_stock: Math.max(Number(item.sku_stock) || 0, 0),
         }))
       : generateCartesianSkuList(product_variations, price || 50, stock || 10);
 
   let product_attributes: SpuProductAttributes = {
     attribute_id: 200000,
-    attribute_value: [],
+    attribute_value: [{ value_id: 1, name: "Tiêu chuẩn" }],
     items: [],
   };
 
@@ -191,12 +192,16 @@ export function buildCreateSpuPayload(product: Partial<Product>): CreateSpuPaylo
       typeof product.product_attributes.attribute_id === "number" &&
       Array.isArray(product.product_attributes.attribute_value)
     ) {
+      const mappedValues = product.product_attributes.attribute_value.map((v) => ({
+        value_id: Number(v.value_id),
+        ...(v.name ? { name: safeExtractString(v.name, "") } : {}),
+      }));
       product_attributes = {
         attribute_id: Number(product.product_attributes.attribute_id),
-        attribute_value: product.product_attributes.attribute_value.map((v) => ({
-          value_id: Number(v.value_id),
-          ...(v.name ? { name: safeExtractString(v.name, "") } : {}),
-        })),
+        attribute_value:
+          mappedValues.length > 0
+            ? mappedValues
+            : [{ value_id: 1, name: "Tiêu chuẩn" }],
         ...(product.product_attributes.name
           ? { name: safeExtractString(product.product_attributes.name, "") }
           : {}),
@@ -209,21 +214,25 @@ export function buildCreateSpuPayload(product: Partial<Product>): CreateSpuPaylo
     ) {
       if (product.product_attributes.items.length > 0) {
         const first = product.product_attributes.items[0];
+        const mappedValues = Array.isArray(first.attribute_value)
+          ? first.attribute_value.map((v) => ({
+              value_id: Number(v.value_id),
+              ...(v.name ? { name: safeExtractString(v.name, "") } : {}),
+            }))
+          : [];
         product_attributes = {
           attribute_id: Number(first.attribute_id) || 200000,
           ...(first.name ? { name: safeExtractString(first.name, "") } : {}),
-          attribute_value: Array.isArray(first.attribute_value)
-            ? first.attribute_value.map((v) => ({
-                value_id: Number(v.value_id),
-                ...(v.name ? { name: safeExtractString(v.name, "") } : {}),
-              }))
-            : [],
+          attribute_value:
+            mappedValues.length > 0
+              ? mappedValues
+              : [{ value_id: 1, name: "Tiêu chuẩn" }],
           items: product.product_attributes.items,
         };
       } else {
         product_attributes = {
           attribute_id: 200000,
-          attribute_value: [],
+          attribute_value: [{ value_id: 1, name: "Tiêu chuẩn" }],
           items: [],
         };
       }
@@ -247,14 +256,16 @@ export function buildCreateSpuPayload(product: Partial<Product>): CreateSpuPaylo
       const s = String(item).trim();
       return s === "[object Object]" ? "" : s;
     })
-    .filter((s): s is string => Boolean(s && s !== "[object Object]"));
+    .filter((s): s is string => Boolean(s && s !== "[object Object]" && OBJECT_ID_REGEX.test(s)));
 
   const product_name =
     safeExtractString(product.name, "Sản phẩm SPU mới").trim() ||
     "Sản phẩm SPU mới";
+  const rawThumb = safeExtractString(product.thumbnail, "").trim();
   const product_thumb =
-    safeExtractString(product.thumbnail, "product_thumb").trim() ||
-    "product_thumb";
+    rawThumb && rawThumb !== "product_thumb" && !rawThumb.includes("undefined")
+      ? rawThumb
+      : DEFAULT_SPU_VARIATION_IMAGE;
   const product_description = (
     safeExtractString(
       product.description || product.shortDescription,

@@ -89,6 +89,7 @@ export const dashboardTranslations = {
     'products.stock_in': 'Còn nhiều hàng (>10)',
     'products.stock_low': 'Sắp hết hàng (1 - 10)',
     'products.stock_out': 'Đã hết hàng (0)',
+    'products.sort_priority': 'Độ ưu tiên (Kéo thả)',
     'products.sort_newest': 'Mới cập nhật',
     'products.sort_revenue': 'Doanh thu cao nhất',
     'products.sort_sold': 'Bán chạy nhất',
@@ -100,6 +101,7 @@ export const dashboardTranslations = {
     'products.create_new': 'Thêm sản phẩm mới',
 
     // Product Table Fields & Headers
+    'table.col_priority': 'Ưu tiên',
     'table.col_product': 'Sản phẩm & Phân loại',
     'table.col_category': 'Danh mục',
     'table.col_price': 'Giá bán',
@@ -363,6 +365,7 @@ export const dashboardTranslations = {
     'products.stock_in': 'In Stock (>10)',
     'products.stock_low': 'Low Stock (1 - 10)',
     'products.stock_out': 'Out of Stock (0)',
+    'products.sort_priority': 'Priority (Drag & Drop)',
     'products.sort_newest': 'Recently Updated',
     'products.sort_revenue': 'Highest Revenue',
     'products.sort_sold': 'Best Selling',
@@ -374,6 +377,7 @@ export const dashboardTranslations = {
     'products.create_new': 'Add New Product',
 
     // Product Table Fields & Headers
+    'table.col_priority': 'Priority',
     'table.col_product': 'Product & Variants',
     'table.col_category': 'Category',
     'table.col_price': 'Selling Price',
@@ -637,6 +641,7 @@ export const dashboardTranslations = {
     'products.stock_in': '在庫あり (>10)',
     'products.stock_low': '在庫僅少 (1 - 10)',
     'products.stock_out': '在庫切れ (0)',
+    'products.sort_priority': '優先度 (ドラッグ＆ドロップ)',
     'products.sort_newest': '更新日順',
     'products.sort_revenue': '売上順',
     'products.sort_sold': '販売数順',
@@ -648,6 +653,7 @@ export const dashboardTranslations = {
     'products.create_new': '新規商品を追加',
 
     // Product Table Fields & Headers
+    'table.col_priority': '優先度',
     'table.col_product': '商品名・バリエーション',
     'table.col_category': 'カテゴリ',
     'table.col_price': '販売価格',

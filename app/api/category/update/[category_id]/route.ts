@@ -1,6 +1,7 @@
 import axios from "axios";
 import { NextResponse } from "next/server";
 import { handleAxiosError } from "@/lib/http/handleAxiosError";
+import { parseAuthCookies } from "@/lib/auth/authCookies";
 import {
   NEXT_PUBLIC_API_KEY,
   REQUEST_HEADER_API_KEY,
@@ -33,16 +34,19 @@ function buildUpstreamHeaders(req: Request): Record<string, string> {
     req.headers.get(REQUEST_HEADER_API_KEY) ||
     NEXT_PUBLIC_API_KEY;
 
+  const cookies = parseAuthCookies(req);
   const rawAuthorization =
     req.headers.get("authorization") ||
     req.headers.get(REQUEST_HEADER_AUTH_KEY) ||
+    cookies.accessToken ||
     "";
   const cleanAuthorization = rawAuthorization
     .replace(/^Bearer\s+/i, "")
     .split(",")[0]
     .trim();
 
-  const headerClientId = req.headers.get(REQUEST_HEADER_CLIENT_ID) || "";
+  const headerClientId =
+    req.headers.get(REQUEST_HEADER_CLIENT_ID) || cookies.clientId || "";
   const jwtClientId = cleanAuthorization
     ? extractUserIdFromJwt(cleanAuthorization)
     : "";

@@ -64,6 +64,7 @@ export interface ProductCategory {
   left?: number;
   right?: number;
   children?: ProductCategory[];
+  priority?: number;
 }
 
 export interface ProductBrand {
@@ -74,12 +75,14 @@ export interface ProductBrand {
   logo?: string;
   brand_active?: boolean;
   productCount?: number;
+  priority?: number;
 }
 
 export interface Product {
   id: string;
   product_id?: string;
   spu_id?: string;
+  priority?: number;
   sku: string;
   barcode?: string;
   name: string;
@@ -173,5 +176,5 @@ export interface ProductFilterState {
   stockStatus: 'all' | 'in_stock' | 'low_stock' | 'out_of_stock';
   minPrice?: number;
   maxPrice?: number;
-  sortBy: 'name' | 'price_asc' | 'price_desc' | 'stock' | 'sold' | 'created';
+  sortBy: 'priority' | 'name' | 'price_asc' | 'price_desc' | 'stock' | 'sold' | 'created';
 }

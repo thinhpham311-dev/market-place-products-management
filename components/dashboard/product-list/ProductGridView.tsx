@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Product } from '@/types/product';
 import { isProductPublished } from '@/services/ProductService';
 import { useTranslation } from '@/lib/i18n/useTranslation';
@@ -19,6 +19,7 @@ interface ProductGridViewProps {
   onDeleteProduct: (id: string) => void;
   onOpenPublishModal: (product: Product) => void;
   onUnpublishProduct?: (product: Product) => void;
+  onReorder?: (sourceId: string, targetId: string) => void;
 }
 
 export const ProductGridView: React.FC<ProductGridViewProps> = ({
@@ -32,26 +33,73 @@ export const ProductGridView: React.FC<ProductGridViewProps> = ({
   onDeleteProduct,
   onOpenPublishModal,
   onUnpublishProduct,
+  onReorder,
 }) => {
   const { t, tp, tc, formatCurrency, formatNumber } = useTranslation();
+  const [draggedId, setDraggedId] = useState<string | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
+
+  const handleDragStart = (e: React.DragEvent, id: string) => {
+    e.dataTransfer.setData('text/plain', id);
+    e.dataTransfer.effectAllowed = 'move';
+    setDraggedId(id);
+  };
+
+  const handleDragOver = (e: React.DragEvent, id: string) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (draggedId && draggedId !== id && dragOverId !== id) {
+      setDragOverId(id);
+    }
+  };
+
+  const handleDragLeave = (id: string) => {
+    if (dragOverId === id) {
+      setDragOverId(null);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent, targetId: string) => {
+    e.preventDefault();
+    const sourceId = e.dataTransfer.getData('text/plain') || draggedId;
+    if (sourceId && targetId && sourceId !== targetId) {
+      onReorder?.(sourceId, targetId);
+    }
+    setDraggedId(null);
+    setDragOverId(null);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedId(null);
+    setDragOverId(null);
+  };
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-      {products.map((p) => {
+      {products.map((p, index) => {
         const isSelected = selectedIds.includes(p.id);
         const isLowStock = p.stock <= p.lowStockThreshold && p.stock > 0;
         const isOutOfStock = p.stock === 0;
         const isDraft = p.status === 'draft';
         const isPublished = isProductPublished(p);
         const translatedName = tp(p.name);
+        const isDraggingThis = draggedId === p.id;
+        const isOverThis = dragOverId === p.id && draggedId !== p.id;
 
         return (
           <div
             key={p.id}
+            onDragOver={(e) => handleDragOver(e, p.id)}
+            onDragLeave={() => handleDragLeave(p.id)}
+            onDrop={(e) => handleDrop(e, p.id)}
             className={`bg-white dark:bg-slate-900 rounded-2xl border transition-all duration-200 overflow-hidden flex flex-col group shadow-sm hover:shadow-md ${
-              isSelected
-                ? 'border-indigo-500 ring-2 ring-indigo-500/20'
-                : 'border-slate-200/80 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
+              isDraggingThis
+                ? 'opacity-30 border-dashed border-indigo-400 bg-indigo-50/20'
+                : isOverThis
+                  ? 'border-indigo-600 ring-2 ring-indigo-500/40 scale-[1.02]'
+                  : isSelected
+                    ? 'border-indigo-500 ring-2 ring-indigo-500/20'
+                    : 'border-slate-200/80 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
             }`}
           >
             {/* Image & Badges */}
@@ -69,6 +117,20 @@ export const ProductGridView: React.FC<ProductGridViewProps> = ({
                   onChange={() => onToggleSelect(p.id)}
                   className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 w-4 h-4 cursor-pointer shadow"
                 />
+              </div>
+
+              {/* Drag Grip & Priority Badge */}
+              <div
+                draggable
+                onDragStart={(e) => handleDragStart(e, p.id)}
+                onDragEnd={handleDragEnd}
+                className="absolute top-3 left-10 z-10 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-lg bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm border border-slate-200/80 dark:border-slate-700/80 text-slate-500 hover:text-indigo-600 dark:hover:text-indigo-400 shadow-xs cursor-grab active:cursor-grabbing select-none"
+                title="Kéo thả để sắp xếp thứ tự ưu tiên"
+              >
+                <Icons.GripVertical size={13} className="shrink-0" />
+                <span className="text-[10px] font-mono font-bold text-slate-700 dark:text-slate-200">
+                  #{p.priority ?? index + 1}
+                </span>
               </div>
 
               {/* Status Badge */}

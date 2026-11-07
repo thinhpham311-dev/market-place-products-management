@@ -1,6 +1,7 @@
 import axios from "axios";
 import { NextResponse } from "next/server";
 import { handleAxiosError } from "@/lib/http/handleAxiosError";
+import { setAuthCookies } from "@/lib/auth/authCookies";
 import {
   NEXT_PUBLIC_API_KEY,
   REQUEST_HEADER_API_KEY,
@@ -56,7 +57,32 @@ export async function POST(req: Request): Promise<Response> {
       },
     );
 
-    return NextResponse.json(dataResponse);
+    const metadata =
+      dataResponse?.metadata || dataResponse?.data || dataResponse;
+    const accessToken =
+      metadata?.tokens?.accessToken ||
+      metadata?.accessToken ||
+      metadata?.token;
+    const refreshToken =
+      metadata?.tokens?.refreshToken || metadata?.refreshToken;
+    const clientId =
+      metadata?.shop?._id ||
+      metadata?.shop?.id ||
+      metadata?.user?._id ||
+      metadata?.user?.id ||
+      metadata?.clientId ||
+      "";
+
+    const response = NextResponse.json(dataResponse);
+    if (accessToken || refreshToken) {
+      setAuthCookies(response, {
+        accessToken: accessToken ? String(accessToken) : undefined,
+        refreshToken: refreshToken ? String(refreshToken) : undefined,
+        clientId: clientId ? String(clientId) : undefined,
+      });
+    }
+
+    return response;
   } catch (error: unknown) {
     const normalized = handleAxiosError(error);
 

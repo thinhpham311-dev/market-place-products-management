@@ -90,15 +90,25 @@ export function mergeDefaultAccounts(
 
   const accountMap = new Map<string, RegisteredAccount>();
 
-  // Add updated default accounts first
+  // Add default accounts first as base
   for (const def of DEFAULT_ACCOUNTS) {
     accountMap.set(def.email.toLowerCase(), def);
   }
 
-  // Preserve user-registered accounts from local storage
+  // Merge or append persisted accounts (including updated database info)
   for (const acc of persisted) {
     const key = acc.email.toLowerCase();
-    if (!accountMap.has(key)) {
+    const existing = accountMap.get(key);
+    if (existing) {
+      accountMap.set(key, {
+        ...existing,
+        ...acc,
+        user: {
+          ...existing.user,
+          ...acc.user,
+        },
+      });
+    } else {
       accountMap.set(key, acc);
     }
   }
@@ -125,8 +135,32 @@ export const accountsSlice = createSlice({
         state.items.unshift(action.payload);
       }
     },
+    updateAccountInfo: (
+      state,
+      action: PayloadAction<{
+        email: string;
+        user: Partial<UserState>;
+        password?: string;
+      }>
+    ) => {
+      if (!state.items) {
+        state.items = [...DEFAULT_ACCOUNTS];
+      }
+      const item = state.items.find(
+        (acc) => acc.email.toLowerCase() === action.payload.email.toLowerCase()
+      );
+      if (item) {
+        if (action.payload.password) {
+          item.password = action.payload.password;
+        }
+        item.user = {
+          ...item.user,
+          ...action.payload.user,
+        };
+      }
+    },
   },
 });
 
-export const { registerAccount } = accountsSlice.actions;
+export const { registerAccount, updateAccountInfo } = accountsSlice.actions;
 export default accountsSlice.reducer;

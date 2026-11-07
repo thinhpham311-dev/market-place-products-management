@@ -362,6 +362,46 @@ const productsSlice = createSlice({
       );
       state.items = [...sanitizedIncoming, ...draftItems];
     },
+
+    // Drag and Drop reorder products by priority
+    reorderProducts(
+      state,
+      action: PayloadAction<Product[] | { sourceId: string; targetId: string } | { sourceIndex: number; destinationIndex: number }>
+    ) {
+      const payload = action.payload;
+      if (Array.isArray(payload)) {
+        state.items = payload.map((p, idx) => ({
+          ...p,
+          priority: idx + 1,
+        }));
+        return;
+      }
+
+      let srcIdx = -1;
+      let destIdx = -1;
+
+      if ('sourceIndex' in payload && 'destinationIndex' in payload) {
+        srcIdx = payload.sourceIndex;
+        destIdx = payload.destinationIndex;
+      } else if ('sourceId' in payload && 'targetId' in payload) {
+        srcIdx = state.items.findIndex((p) => matchesProductId(p, payload.sourceId));
+        destIdx = state.items.findIndex((p) => matchesProductId(p, payload.targetId));
+      }
+
+      if (
+        srcIdx >= 0 &&
+        destIdx >= 0 &&
+        srcIdx !== destIdx &&
+        srcIdx < state.items.length &&
+        destIdx < state.items.length
+      ) {
+        const [moved] = state.items.splice(srcIdx, 1);
+        state.items.splice(destIdx, 0, moved);
+        state.items.forEach((p, idx) => {
+          p.priority = idx + 1;
+        });
+      }
+    },
   },
 });
 
@@ -381,6 +421,7 @@ export const {
   bulkDelete,
   setDraftedProducts,
   setPublishedProducts,
+  reorderProducts,
 } = productsSlice.actions;
 
 export default productsSlice.reducer;

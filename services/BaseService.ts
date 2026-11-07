@@ -43,35 +43,51 @@ export async function refreshAccessTokenSingleFlight(): Promise<string | null> {
     const currentAccessToken = state?.auth?.session?.token;
     const currentRefreshToken = state?.auth?.session?.refreshToken;
     const clientId =
-      extractUserIdFromJwt(currentAccessToken) || state?.auth?.user?.id;
-
-    if (!currentAccessToken && !currentRefreshToken) {
-      return null;
-    }
+      extractUserIdFromJwt(currentAccessToken) ||
+      extractUserIdFromJwt(currentRefreshToken) ||
+      state?.auth?.user?.id;
 
     try {
       const apiKey = process.env.NEXT_PUBLIC_API_KEY || API_KEY;
-      const refreshRes = await axios.post(
-        `${baseURL}/shop/refreshtoken`,
-        {
-          accessToken: currentAccessToken,
-          refreshToken: currentRefreshToken || currentAccessToken,
-          clientId,
-        },
-        {
-          headers: {
-            "Content-Type": "application/json",
-            [REQUEST_HEADER_API_KEY]: apiKey,
-            ...(currentAccessToken
-              ? { authorization: currentAccessToken }
-              : {}),
-            [REQUEST_HEADER_REFRESH_TOKEN]:
-              currentRefreshToken || currentAccessToken || "",
-            ...(clientId ? { [REQUEST_HEADER_CLIENT_ID]: clientId } : {}),
-          },
+      const payload: Record<string, unknown> = {
+        ...(currentAccessToken ? { accessToken: currentAccessToken } : {}),
+        ...(currentRefreshToken
+          ? { refreshToken: currentRefreshToken }
+          : currentAccessToken
+            ? { refreshToken: currentAccessToken }
+            : {}),
+        ...(clientId ? { clientId } : {}),
+      };
+
+      const refreshHeaders: Record<string, string> = {
+        "Content-Type": "application/json",
+        ...(apiKey ? { [REQUEST_HEADER_API_KEY]: apiKey } : {}),
+        ...(currentAccessToken ? { authorization: currentAccessToken } : {}),
+        ...(currentRefreshToken
+          ? { [REQUEST_HEADER_REFRESH_TOKEN]: currentRefreshToken }
+          : currentAccessToken
+            ? { [REQUEST_HEADER_REFRESH_TOKEN]: currentAccessToken }
+            : {}),
+        ...(clientId ? { [REQUEST_HEADER_CLIENT_ID]: clientId } : {}),
+      };
+
+      let refreshRes;
+      try {
+        refreshRes = await axios.post("/v1/api/shop/refreshtoken", payload, {
+          headers: refreshHeaders,
           withCredentials: true,
-        },
-      );
+        });
+      } catch (err: unknown) {
+        const status = (err as { response?: { status?: number } })?.response?.status;
+        if (status === 404) {
+          refreshRes = await axios.post(`${baseURL}/shop/refreshtoken`, payload, {
+            headers: refreshHeaders,
+            withCredentials: true,
+          });
+        } else {
+          throw err;
+        }
+      }
 
       const refreshData = refreshRes.data;
       const metadata =
@@ -79,9 +95,15 @@ export async function refreshAccessTokenSingleFlight(): Promise<string | null> {
       const newAccessToken =
         metadata?.tokens?.accessToken ||
         metadata?.accessToken ||
-        metadata?.token;
+        metadata?.token ||
+        refreshData?.tokens?.accessToken ||
+        refreshData?.accessToken ||
+        refreshData?.token;
       const newRefreshToken =
-        metadata?.tokens?.refreshToken || metadata?.refreshToken;
+        metadata?.tokens?.refreshToken ||
+        metadata?.refreshToken ||
+        refreshData?.tokens?.refreshToken ||
+        refreshData?.refreshToken;
 
       if (newAccessToken) {
         store.dispatch(setToken(newAccessToken));
@@ -111,12 +133,25 @@ function extractUserIdFromJwt(token?: string): string | null {
   if (parts.length !== 3) return null;
   try {
     const base64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
-    const jsonPayload = decodeURIComponent(
-      atob(base64)
-        .split("")
-        .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
-        .join(""),
-    );
+    let jsonPayload = "";
+    if (typeof atob === "function") {
+      jsonPayload = decodeURIComponent(
+        atob(base64)
+          .split("")
+          .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
+          .join(""),
+      );
+    } else {
+      const g = globalThis as {
+        Buffer?: {
+          from: (str: string, enc: string) => { toString: (enc: string) => string };
+        };
+      };
+      if (g.Buffer) {
+        jsonPayload = g.Buffer.from(base64, "base64").toString("utf-8");
+      }
+    }
+    if (!jsonPayload) return null;
     const parsed = JSON.parse(jsonPayload) as Record<string, unknown>;
     const id = parsed.userId || parsed._id || parsed.id || parsed.sub;
     return typeof id === "string" && id ? id : null;
@@ -253,6 +288,19 @@ BaseService.interceptors.response.use(
           data.statusCode ??
           (typeof data.status === "number" ? data.status : 0),
       );
+
+      if (
+        payloadCode === 401 ||
+        (typeof data.message === "string" &&
+          (data.message.toLowerCase().includes("jwt expired") ||
+            data.message.toLowerCase().includes("token expired")))
+      ) {
+        const authErr = new Error(data.message || "Token expired");
+        (authErr as unknown as { response: unknown; config: unknown }).response = response;
+        (authErr as unknown as { response: unknown; config: unknown }).config = response.config;
+        return Promise.reject(authErr);
+      }
+
       if (
         payloadCode >= 500 ||
         (data.status === "error" && (!payloadCode || payloadCode >= 500))
@@ -290,13 +338,27 @@ BaseService.interceptors.response.use(
     const isAuthExcluded =
       reqUrl.includes("/shop/signin") ||
       reqUrl.includes("/shop/signout") ||
-      reqUrl.includes("/shop/refreshtoken");
+      reqUrl.includes("/shop/refreshtoken") ||
+      reqUrl.includes("/refreshtoken");
+
+    const statusCode =
+      response?.status ||
+      (typeof response?.data?.code === "number" ? response.data.code : 0) ||
+      (typeof response?.data?.statusCode === "number" ? response.data.statusCode : 0);
 
     const errorMessage = String(
       response?.data?.message || error?.message || "",
     ).toLowerCase();
     const isTokenExpiredError =
       (response && unauthorizedCode.includes(response.status)) ||
+      statusCode === 401 ||
+      (statusCode === 403 &&
+        (errorMessage.includes("expired") ||
+          errorMessage.includes("jwt") ||
+          errorMessage.includes("token") ||
+          errorMessage.includes("auth"))) ||
+      errorMessage.includes("jwt expired") ||
+      errorMessage.includes("token expired") ||
       errorMessage.includes("expired") ||
       errorMessage.includes("jwt");
 
@@ -304,30 +366,34 @@ BaseService.interceptors.response.use(
     const isSignedIn = state?.auth?.session?.signedIn;
     const keepMeSignedIn = state?.auth?.session?.keepMeSignedIn ?? true;
     const currentAccessToken = state?.auth?.session?.token;
+    const currentRefreshToken = state?.auth?.session?.refreshToken;
+    const hasAnyToken = Boolean(currentAccessToken || currentRefreshToken);
 
     if (
       isTokenExpiredError &&
-      isSignedIn &&
-      currentAccessToken &&
+      (isSignedIn || hasAnyToken) &&
       !isAuthExcluded &&
       originalRequest &&
       !originalRequest._retry
     ) {
-      if (keepMeSignedIn === false) {
-        store.dispatch(onSignOutSuccess());
-        store.dispatch(userLoggedOut());
-        return Promise.reject(handleAxiosError(error));
-      }
-
       originalRequest._retry = true;
 
       try {
         const newAccessToken = await refreshAccessTokenSingleFlight();
         if (newAccessToken) {
-          if (originalRequest.headers) {
-            originalRequest.headers[REQUEST_HEADER_AUTH_KEY] =
-              `${TOKEN_TYPE}${newAccessToken}`;
-            originalRequest.headers["authorization"] = newAccessToken;
+          if (!originalRequest.headers) {
+            originalRequest.headers = {} as AxiosRequestConfig["headers"];
+          }
+          const headersAny = originalRequest.headers as unknown as {
+            set?: (key: string, val: string) => void;
+            [key: string]: unknown;
+          };
+          if (typeof headersAny.set === "function") {
+            headersAny.set(REQUEST_HEADER_AUTH_KEY, `${TOKEN_TYPE}${newAccessToken}`);
+            headersAny.set("authorization", newAccessToken);
+          } else {
+            headersAny[REQUEST_HEADER_AUTH_KEY] = `${TOKEN_TYPE}${newAccessToken}`;
+            headersAny["authorization"] = newAccessToken;
           }
           return BaseService(originalRequest);
         }

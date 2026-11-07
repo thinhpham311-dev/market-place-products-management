@@ -1,7 +1,8 @@
 'use client';
 
-import React, { Suspense, useCallback, useEffect, useState } from 'react';
+import React, { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
+import store from '@/store';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { selectDashboardMetrics } from '@/store/selectors/metricsSelectors';
 import {
@@ -109,6 +110,8 @@ export const DashboardShell: React.FC<{ children: React.ReactNode }> = ({ childr
   const apiErrors = useAppSelector((s) => s.ui.apiErrors ?? []);
 
   const [isRetryingApi, setIsRetryingApi] = useState(false);
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+  const hasCheckedAuthRef = useRef(false);
 
   const isAuthPage = AUTH_PATHS.includes(pathname);
   const currentTab = getActiveTabFromPathname(pathname);
@@ -121,7 +124,7 @@ export const DashboardShell: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const loadSpuAndCategories = useCallback(
     async (isManualRetry = false) => {
-      if (!isHydrated || !signedIn || isAuthPage || !accessToken) {
+      if (!isHydrated || isCheckingAuth || !signedIn || isAuthPage || !accessToken) {
         return;
       }
 
@@ -262,47 +265,103 @@ export const DashboardShell: React.FC<{ children: React.ReactNode }> = ({ childr
         }
       }
     },
-    [isHydrated, signedIn, isAuthPage, accessToken, dispatch]
+    [isHydrated, isCheckingAuth, signedIn, isAuthPage, accessToken, dispatch]
   );
 
-  // Fetch published (/v1/api/product/spu/published/list), drafted (/v1/api/product/spu/drafted/list) & categories (/v1/api/category/all/list) after hydration & sign-in
+  // On startup / re-access: check persisted session and renew token automatically without requiring re-login
   useEffect(() => {
-    void loadSpuAndCategories(false);
-  }, [loadSpuAndCategories, user?.id]);
+    if (!isHydrated || hasCheckedAuthRef.current) return;
+    hasCheckedAuthRef.current = true;
 
-  // Redirect unauthenticated users to /login when accessing protected pages after store hydration
+    let isCancelled = false;
+
+    const restoreSession = async () => {
+      const state = store.getState();
+      const currentToken = state?.auth?.session?.token;
+      const currentSignedIn = state?.auth?.session?.signedIn;
+
+      // Check if in-memory token is valid or needs renewal.
+      // Since tokens are stored in HttpOnly cookies (not localStorage),
+      // currentToken is empty on fresh page loads and must be renewed via HttpOnly cookie.
+      const expMs = getJwtExpirationMs(currentToken);
+      const isExpiredOrMissing =
+        !currentToken || (expMs !== null && expMs <= Date.now() + 60 * 1000);
+
+      if (isExpiredOrMissing || !currentSignedIn) {
+        try {
+          const newToken = await refreshAccessTokenSingleFlight();
+          if (newToken && !isCancelled) {
+            setIsCheckingAuth(false);
+            if (isAuthPage) {
+              const rawRedirectUrl =
+                typeof window !== 'undefined'
+                  ? new URLSearchParams(window.location.search).get('redirectUrl')
+                  : null;
+              router.replace(rawRedirectUrl || '/?tab=overview');
+            }
+            return;
+          }
+        } catch (err: unknown) {
+          const status = (err as { response?: { status?: number } })?.response?.status;
+          if (status === 401 || status === 403) {
+            if (!isCancelled) {
+              dispatch(onSignOutSuccess());
+              dispatch(userLoggedOut());
+              setIsCheckingAuth(false);
+              if (!isAuthPage) {
+                router.replace(`/login?redirectUrl=${encodeURIComponent(pathname)}`);
+              }
+            }
+            return;
+          }
+        }
+      }
+
+      if (!isCancelled) {
+        setIsCheckingAuth(false);
+        if (isAuthPage && (currentSignedIn || Boolean(currentToken))) {
+          const rawRedirectUrl =
+            typeof window !== 'undefined'
+              ? new URLSearchParams(window.location.search).get('redirectUrl')
+              : null;
+          router.replace(rawRedirectUrl || '/?tab=overview');
+        }
+      }
+    };
+
+    void restoreSession();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [isHydrated, isAuthPage, pathname, router, dispatch]);
+
+  // Fetch published (/v1/api/product/spu/published/list), drafted (/v1/api/product/spu/drafted/list) & categories (/v1/api/category/all/list) after auth check & sign-in
   useEffect(() => {
-    if (!isHydrated) return;
+    if (!isCheckingAuth && signedIn) {
+      void loadSpuAndCategories(false);
+    }
+  }, [loadSpuAndCategories, isCheckingAuth, signedIn, user?.id]);
+
+  // Redirect unauthenticated users to /login when accessing protected pages after initial auth check
+  useEffect(() => {
+    if (!isHydrated || isCheckingAuth) return;
     if (!signedIn && !isAuthPage) {
       router.replace(`/login?redirectUrl=${encodeURIComponent(pathname)}`);
     }
-  }, [isHydrated, signedIn, isAuthPage, pathname, router]);
+  }, [isHydrated, isCheckingAuth, signedIn, isAuthPage, pathname, router]);
 
-  // Automatically refresh token if keepMeSignedIn is checked; otherwise auto-logout when accessToken expires
+  // Automatically refresh token in background 60s before accessToken expires while app is active
   useEffect(() => {
-    if (!isHydrated || !signedIn || isAuthPage || !accessToken) return;
+    if (!isHydrated || isCheckingAuth || !signedIn || isAuthPage || !accessToken) return;
 
     const expMs = getJwtExpirationMs(accessToken);
     if (!expMs) return;
 
-    const handleTokenExpired = async () => {
-      if (keepMeSignedIn === false) {
-        try {
-          await apiSignOut({
-            id: user?.id,
-            email: user?.email,
-          });
-        } catch {
-          // Proceed with local logout even if upstream signout fails
-        } finally {
-          dispatch(onSignOutSuccess());
-          dispatch(userLoggedOut());
-          dispatch(showToast('Phiên đăng nhập đã hết hạn. Đã tự động đăng xuất.'));
-          router.replace('/login');
-        }
-        return;
-      }
+    const refreshLeadTimeMs = 60 * 1000;
+    const delayMs = Math.max(0, expMs - Date.now() - refreshLeadTimeMs);
 
+    const timer = setTimeout(async () => {
       try {
         await refreshAccessTokenSingleFlight();
       } catch (err: unknown) {
@@ -313,26 +372,16 @@ export const DashboardShell: React.FC<{ children: React.ReactNode }> = ({ childr
           router.replace('/login');
         }
       }
-    };
-
-    const delayMs = expMs - Date.now();
-    if (delayMs <= 0) {
-      void handleTokenExpired();
-      return;
-    }
-
-    const timer = setTimeout(() => {
-      void handleTokenExpired();
     }, delayMs);
 
     return () => clearTimeout(timer);
   }, [
     isHydrated,
+    isCheckingAuth,
     signedIn,
     isAuthPage,
     accessToken,
     refreshToken,
-    keepMeSignedIn,
     user?.id,
     user?.email,
     dispatch,
@@ -420,7 +469,20 @@ export const DashboardShell: React.FC<{ children: React.ReactNode }> = ({ childr
     );
   }
 
-  if (!isHydrated || !signedIn) {
+  if (!isHydrated || (isCheckingAuth && !isAuthPage)) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 border-3 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+          <p className="text-xs text-slate-500 dark:text-slate-400 font-medium animate-pulse">
+            Đang khôi phục phiên làm việc...
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!signedIn && !isAuthPage) {
     return null;
   }
 

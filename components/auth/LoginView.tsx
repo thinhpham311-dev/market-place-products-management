@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
+import { useHydrated } from '@/store/StoreProvider';
 import {
   onSignInSuccess,
   setKeepMeSignedIn,
@@ -14,6 +15,7 @@ import {
   DEFAULT_ACCOUNTS,
   RegisteredAccount,
   mergeDefaultAccounts,
+  updateAccountInfo,
 } from '@/store/auth/accountsSlice';
 import { showToast } from '@/store/slices/uiSlice';
 import { apiSignIn } from '@/services/AuthService';
@@ -50,6 +52,18 @@ export const LoginView: React.FC = () => {
   const { t } = useTranslation();
 
   const persistedAccounts = useAppSelector((s) => s.auth.accounts?.items);
+  const signedIn = useAppSelector((s) => s.auth.session.signedIn);
+  const currentToken = useAppSelector((s) => s.auth.session.token);
+  const isHydrated = useHydrated();
+
+  useEffect(() => {
+    if (!isHydrated) return;
+    if (signedIn && currentToken) {
+      const rawRedirectUrl = searchParams.get('redirectUrl') || '/?tab=overview';
+      router.replace(rawRedirectUrl);
+    }
+  }, [isHydrated, signedIn, currentToken, searchParams, router]);
+
   const accounts = useMemo(
     () => mergeDefaultAccounts(persistedAccounts),
     [persistedAccounts]
@@ -61,6 +75,7 @@ export const LoginView: React.FC = () => {
   const [rememberMe, setRememberMe] = useState(true);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [selectedDemoEmail, setSelectedDemoEmail] = useState<string | undefined>(undefined);
 
   const performLogin = (
     userPayload: UserState,
@@ -107,120 +122,241 @@ export const LoginView: React.FC = () => {
     setIsLoading(true);
     setError('');
 
+    let effectivePassword = loginPassword;
+    let res;
+    let apiData: Record<string, any> | undefined;
+
     try {
-      const res = await apiSignIn({
+      res = await apiSignIn({
         email: loginEmail.trim(),
-        password: loginPassword,
+        password: effectivePassword,
       });
-      const apiData = res.data as Record<string, any> | undefined;
+      apiData = res.data as Record<string, any> | undefined;
+    } catch (firstErr: unknown) {
+      // If authentication failed with 400/401, check if an alternate demo password exists
+      const altPassword =
+        effectivePassword === 'novashop'
+          ? '123456'
+          : effectivePassword === '123456'
+          ? 'novashop'
+          : null;
 
-      if (
-        !apiData ||
-        apiData?.status === 'error' ||
-        (typeof apiData?.code === 'number' && apiData.code >= 400) ||
-        (typeof apiData?.statusCode === 'number' && apiData.statusCode >= 400)
-      ) {
-        const matched = accounts.find(
-          (a) =>
-            a.email.toLowerCase() === loginEmail.trim().toLowerCase() &&
-            a.password === loginPassword
-        );
-        if (matched) {
-          performLogin(matched.user);
-          return;
+      if (altPassword) {
+        try {
+          res = await apiSignIn({
+            email: loginEmail.trim(),
+            password: altPassword,
+          });
+          const altApiData = res.data as Record<string, any> | undefined;
+          if (
+            altApiData &&
+            altApiData.status !== 'error' &&
+            !(typeof altApiData.code === 'number' && altApiData.code >= 400) &&
+            !(typeof altApiData.statusCode === 'number' && altApiData.statusCode >= 400)
+          ) {
+            effectivePassword = altPassword;
+            apiData = altApiData;
+            setPassword(altPassword);
+          }
+        } catch {
+          // Both failed
         }
-        setError(
-          apiData?.message ||
-            'Email hoặc mật khẩu không chính xác. Vui lòng kiểm tra lại.'
-        );
-        return;
       }
 
-      const metadata = apiData?.metadata || apiData?.data || apiData;
-      const shopInfo = metadata?.shop || metadata?.user || {};
-      const accessToken =
-        metadata?.tokens?.accessToken ||
-        metadata?.accessToken ||
-        metadata?.token;
-      const refreshToken =
-        metadata?.tokens?.refreshToken || metadata?.refreshToken;
-
-      if (!accessToken && !shopInfo?._id && !shopInfo?.id) {
-        setError(
-          apiData?.message ||
-            'Đăng nhập thất bại: Thông tin tài khoản hoặc mật khẩu không hợp lệ.'
-        );
-        return;
+      if (!apiData) {
+        throw firstErr;
       }
-
-      const resolvedName =
-        shopInfo?.name ||
-        shopInfo?.userName ||
-        loginEmail.split('@')[0] ||
-        'Shop Admin';
-      const initials = resolvedName
-        .split(' ')
-        .map((w: string) => w[0])
-        .join('')
-        .slice(0, 2)
-        .toUpperCase();
-
-      const resolvedClientId =
-        shopInfo?._id ||
-        shopInfo?.id ||
-        shopInfo?.userId ||
-        metadata?.clientId ||
-        extractUserIdFromJwt(accessToken);
-
-      const matchedAccount = accounts.find(
-        (acc) => acc.email.toLowerCase() === loginEmail.trim().toLowerCase()
-      );
-
-      performLogin(
-        {
-          id: resolvedClientId,
-          avatar: initials || matchedAccount?.user.avatar || 'SH',
-          userName: resolvedName || matchedAccount?.user.userName || 'Shop Admin',
-          email: shopInfo?.email || loginEmail.trim(),
-          role: shopInfo?.role || matchedAccount?.user.role || 'SUPER_ADMIN',
-          authority:
-            shopInfo?.roles ||
-            matchedAccount?.user.authority || ['SUPER_ADMIN', 'admin', 'owner'],
-        },
-        accessToken,
-        refreshToken
-      );
-    } catch (err: unknown) {
-      const matched = accounts.find(
-        (a) =>
-          a.email.toLowerCase() === loginEmail.trim().toLowerCase() &&
-          a.password === loginPassword
-      );
-      if (matched) {
-        performLogin(matched.user);
-        return;
-      }
-      const errObj = err as { message?: string; status?: number };
-      const message =
-        errObj?.message && errObj.message !== 'Request failed with status code 401'
-          ? errObj.message
-          : 'Email hoặc mật khẩu không chính xác. Vui lòng kiểm tra lại.';
-      setError(message);
-    } finally {
-      setIsLoading(false);
     }
+
+    // If server responded 200 OK but payload indicates an error, check alt password
+    if (
+      apiData &&
+      (apiData.status === 'error' ||
+        (typeof apiData.code === 'number' && apiData.code >= 400) ||
+        (typeof apiData.statusCode === 'number' && apiData.statusCode >= 400))
+    ) {
+      const altPassword =
+        effectivePassword === 'novashop'
+          ? '123456'
+          : effectivePassword === '123456'
+          ? 'novashop'
+          : null;
+
+      if (altPassword) {
+        try {
+          const altRes = await apiSignIn({
+            email: loginEmail.trim(),
+            password: altPassword,
+          });
+          const altApiData = altRes.data as Record<string, any> | undefined;
+          if (
+            altApiData &&
+            altApiData.status !== 'error' &&
+            !(typeof altApiData.code === 'number' && altApiData.code >= 400) &&
+            !(typeof altApiData.statusCode === 'number' && altApiData.statusCode >= 400)
+          ) {
+            effectivePassword = altPassword;
+            apiData = altApiData;
+            setPassword(altPassword);
+          }
+        } catch {
+          // ignore
+        }
+      }
+    }
+
+    if (
+      !apiData ||
+      apiData?.status === 'error' ||
+      (typeof apiData?.code === 'number' && apiData.code >= 400) ||
+      (typeof apiData?.statusCode === 'number' && apiData.statusCode >= 400)
+    ) {
+      setError(
+        apiData?.message ||
+          'Email hoặc mật khẩu không chính xác với tài khoản trong database. Vui lòng kiểm tra lại.'
+      );
+      return;
+    }
+
+    const metadata = apiData?.metadata || apiData?.data || apiData;
+    const shopInfo = metadata?.shop || metadata?.user || {};
+    const accessToken =
+      metadata?.tokens?.accessToken ||
+      metadata?.accessToken ||
+      metadata?.token;
+    const refreshToken =
+      metadata?.tokens?.refreshToken || metadata?.refreshToken;
+
+    if (!accessToken && !shopInfo?._id && !shopInfo?.id) {
+      setError(
+        apiData?.message ||
+          'Đăng nhập thất bại: Không nhận được dữ liệu xác thực từ database.'
+      );
+      return;
+    }
+
+    const resolvedName =
+      shopInfo?.name ||
+      shopInfo?.userName ||
+      loginEmail.split('@')[0] ||
+      'Shop Admin';
+    const initials = resolvedName
+      .split(' ')
+      .map((w: string) => w[0])
+      .join('')
+      .slice(0, 2)
+      .toUpperCase();
+
+    const resolvedClientId =
+      shopInfo?._id ||
+      shopInfo?.id ||
+      shopInfo?.userId ||
+      metadata?.clientId ||
+      extractUserIdFromJwt(accessToken);
+
+    const matchedAccount = accounts.find(
+      (acc) => acc.email.toLowerCase() === loginEmail.trim().toLowerCase()
+    );
+
+    const resolvedRoles = Array.isArray(shopInfo?.roles)
+      ? shopInfo.roles
+      : matchedAccount?.user.authority || ['SUPER_ADMIN', 'admin', 'owner'];
+    const resolvedRole =
+      shopInfo?.role ||
+      (Array.isArray(shopInfo?.roles) && shopInfo.roles[0]) ||
+      matchedAccount?.user.role ||
+      'SUPER_ADMIN';
+
+    const resolvedUser: UserState = {
+      id: resolvedClientId,
+      avatar: initials || matchedAccount?.user.avatar || 'SH',
+      userName: resolvedName || matchedAccount?.user.userName || 'Shop Admin',
+      email: shopInfo?.email || loginEmail.trim(),
+      role: resolvedRole,
+      authority: resolvedRoles,
+    };
+
+    dispatch(
+      updateAccountInfo({
+        email: loginEmail.trim(),
+        user: resolvedUser,
+        password: effectivePassword,
+      })
+    );
+
+    performLogin(resolvedUser, accessToken, refreshToken);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    await authenticateWithApi(email, password);
+    try {
+      await authenticateWithApi(email, password);
+    } catch (err: unknown) {
+      handleCatchAuthError(err, email, password);
+    } finally {
+      setIsLoading(false);
+      setSelectedDemoEmail(undefined);
+    }
   };
 
-  const handleSelectDemo = (acc: RegisteredAccount) => {
+  const handleCatchAuthError = (err: unknown, loginEmail: string, loginPassword: string) => {
+    const errObj = err as {
+      message?: string;
+      status?: number;
+      response?: { status?: number; data?: { message?: string } };
+    };
+    const status = errObj?.response?.status ?? errObj?.status;
+    const serverMessage =
+      errObj?.response?.data?.message || errObj?.message;
+
+    // If backend explicitly returned auth error (400, 401, 403, 404)
+    if (status && status < 500) {
+      setError(
+        serverMessage && serverMessage !== 'Request failed with status code 401'
+          ? serverMessage
+          : 'Email hoặc mật khẩu không chính xác với tài khoản trong database.'
+      );
+      return;
+    }
+
+    // If server is completely offline / unreachable, fallback to mock account with notice
+    const matched = accounts.find(
+      (a) =>
+        a.email.toLowerCase() === loginEmail.trim().toLowerCase() &&
+        a.password === loginPassword
+    );
+    if (matched && (!status || status >= 500)) {
+      dispatch(
+        showToast(
+          'Không thể kết nối đến máy chủ backend, dùng tài khoản mẫu tạm thời.'
+        )
+      );
+      performLogin(matched.user);
+      return;
+    }
+
+    setError(
+      serverMessage && serverMessage !== 'Request failed with status code 401'
+        ? serverMessage
+        : 'Không thể kết nối đến máy chủ hoặc tài khoản không tồn tại trong database.'
+    );
+  };
+
+  const handleSelectDemo = async (acc: RegisteredAccount) => {
+    if (isLoading) return;
+    setSelectedDemoEmail(acc.email);
     setEmail(acc.email);
     setPassword(acc.password);
     setError('');
-    performLogin(acc.user);
+
+    try {
+      await authenticateWithApi(acc.email, acc.password);
+    } catch (err: unknown) {
+      handleCatchAuthError(err, acc.email, acc.password);
+    } finally {
+      setIsLoading(false);
+      setSelectedDemoEmail(undefined);
+    }
   };
 
   return (
@@ -348,7 +484,12 @@ export const LoginView: React.FC = () => {
         </div>
 
         {/* Quick Account Switcher */}
-        <QuickAccountSwitcher accounts={accounts} onSelectAccount={handleSelectDemo} />
+        <QuickAccountSwitcher
+          accounts={accounts}
+          onSelectAccount={handleSelectDemo}
+          isLoading={isLoading}
+          selectedEmail={selectedDemoEmail}
+        />
       </div>
     </AuthSplitLayout>
   );
