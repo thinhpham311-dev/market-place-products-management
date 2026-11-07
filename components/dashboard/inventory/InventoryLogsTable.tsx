@@ -61,9 +61,16 @@ export const InventoryLogsTable: React.FC<InventoryLogsTableProps> = ({ logs }) 
                 <span className="block text-slate-700 dark:text-slate-300 font-medium">
                   {tlr(log.reason)}
                 </span>
-                <span className="text-[10px] text-slate-400">
-                  {t('inventory.staff_prefix')} {log.staffName}
-                </span>
+                <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+                  <span className="text-[10px] text-slate-400">
+                    {t('inventory.staff_prefix')} {log.staffName}
+                  </span>
+                  {log.warehouseName && (
+                    <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-slate-100 dark:bg-slate-800 text-slate-500">
+                      Kho: {log.warehouseName}
+                    </span>
+                  )}
+                </div>
               </td>
             </tr>
           ))}

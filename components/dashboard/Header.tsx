@@ -9,6 +9,7 @@ import { useTranslation } from '@/lib/i18n/useTranslation';
 import { UserState } from '@/store/auth/userSlice';
 import { DashboardApiError } from '@/store/slices/uiSlice';
 import { UserProfileMenu } from '@/components/auth/UserProfileMenu';
+import { HeaderScopeSelector } from '@/components/dashboard/HeaderScopeSelector';
 
 interface HeaderProps {
   onOpenCreateProduct: () => void;
@@ -108,6 +109,9 @@ export const Header: React.FC<HeaderProps> = ({
 
       {/* Right: Quick Actions & Profile */}
       <div className="flex items-center gap-2 sm:gap-2.5">
+        {/* Scope Switcher (Shop & Warehouse) */}
+        <HeaderScopeSelector />
+
         {/* Language Switcher */}
         <LanguageSwitcher />
 

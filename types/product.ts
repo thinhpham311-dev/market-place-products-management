@@ -103,6 +103,8 @@ export interface Product {
   stock: number;
   lowStockThreshold: number;
   warehouseLocation?: string;
+  warehouseStock?: Record<string, number>; // Maps warehouseId -> quantity, e.g. { 'wh-a1': 50, 'wh-a2': 30, 'wh-b1': 20 }
+  shopId?: string;
   
   // Media
   thumbnail: string;
@@ -155,6 +157,10 @@ export interface InventoryLog {
   reason: string;
   staffName: string;
   date: string;
+  warehouseId?: string;
+  warehouseName?: string;
+  targetWarehouseId?: string;
+  targetWarehouseName?: string;
 }
 
 export interface DashboardMetrics {

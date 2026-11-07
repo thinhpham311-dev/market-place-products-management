@@ -5,6 +5,7 @@ import products from "./slices/productsSlice";
 import categories from "./slices/categoriesSlice";
 import brands from "./slices/brandsSlice";
 import ui from "./slices/uiSlice";
+import scope from "./slices/scopeSlice";
 
 const staticReducers = {
   auth,
@@ -13,6 +14,7 @@ const staticReducers = {
   categories,
   brands,
   ui,
+  scope,
 };
 
 const combinedStaticReducer = combineReducers(staticReducers);

@@ -192,9 +192,11 @@ const productsSlice = createSlice({
         delta: number;
         reason: string;
         type: 'in' | 'out' | 'adjustment';
+        warehouseId?: string;
+        warehouseName?: string;
       }>
     ) {
-      const { productId, delta, reason, type } = action.payload;
+      const { productId, delta, reason, type, warehouseId, warehouseName } = action.payload;
       const product = state.items.find((p) => p.id === productId);
       if (!product) return;
 
@@ -208,6 +210,18 @@ const productsSlice = createSlice({
         product.status = 'active';
       }
 
+      if (warehouseId) {
+        if (!product.warehouseStock) {
+          product.warehouseStock = {
+            'wh-a1': Math.round(previousStock * 0.5),
+            'wh-a2': Math.round(previousStock * 0.3),
+            'wh-b1': Math.max(0, previousStock - Math.round(previousStock * 0.5) - Math.round(previousStock * 0.3)),
+          };
+        }
+        const currentWhStock = product.warehouseStock[warehouseId] ?? 0;
+        product.warehouseStock[warehouseId] = Math.max(0, currentWhStock + delta);
+      }
+
       state.inventoryLogs.unshift({
         id: `log-${Date.now()}`,
         productId: product.id,
@@ -217,9 +231,73 @@ const productsSlice = createSlice({
         quantity: delta,
         previousStock,
         newStock,
-        reason: reason || 'Phiếu điều chỉnh tồn kho',
+        reason: reason || (warehouseName ? `Điều chỉnh tồn tại ${warehouseName}` : 'Phiếu điều chỉnh tồn kho'),
         staffName: 'Admin Shop',
         date: new Date().toISOString().replace('T', ' ').slice(0, 16),
+        warehouseId,
+        warehouseName,
+      });
+    },
+
+    // Stock transfer between warehouses
+    transferStockBetweenWarehouses(
+      state,
+      action: PayloadAction<{
+        productId: string;
+        fromWarehouseId: string;
+        fromWarehouseName: string;
+        toWarehouseId: string;
+        toWarehouseName: string;
+        quantity: number;
+        reason?: string;
+        staffName?: string;
+      }>
+    ) {
+      const {
+        productId,
+        fromWarehouseId,
+        fromWarehouseName,
+        toWarehouseId,
+        toWarehouseName,
+        quantity,
+        reason,
+        staffName,
+      } = action.payload;
+
+      const product = state.items.find((p) => p.id === productId);
+      if (!product || quantity <= 0) return;
+
+      if (!product.warehouseStock) {
+        product.warehouseStock = {
+          'wh-a1': Math.round(product.stock * 0.5),
+          'wh-a2': Math.round(product.stock * 0.3),
+          'wh-b1': Math.max(0, product.stock - Math.round(product.stock * 0.5) - Math.round(product.stock * 0.3)),
+        };
+      }
+
+      const sourceStock = product.warehouseStock[fromWarehouseId] ?? 0;
+      const transferQty = Math.min(sourceStock, quantity);
+      if (transferQty <= 0) return;
+
+      product.warehouseStock[fromWarehouseId] = sourceStock - transferQty;
+      product.warehouseStock[toWarehouseId] = (product.warehouseStock[toWarehouseId] ?? 0) + transferQty;
+
+      state.inventoryLogs.unshift({
+        id: `log-transfer-${Date.now()}`,
+        productId: product.id,
+        productName: product.name,
+        sku: product.sku,
+        type: 'adjustment',
+        quantity: transferQty,
+        previousStock: product.stock,
+        newStock: product.stock,
+        reason: reason || `Chuyển ${transferQty} sản phẩm từ [${fromWarehouseName}] sang [${toWarehouseName}]`,
+        staffName: staffName || 'Admin / Warehouse Manager',
+        date: new Date().toISOString().replace('T', ' ').slice(0, 16),
+        warehouseId: fromWarehouseId,
+        warehouseName: fromWarehouseName,
+        targetWarehouseId: toWarehouseId,
+        targetWarehouseName: toWarehouseName,
       });
     },
 
@@ -413,6 +491,7 @@ export const {
   toggleStatus,
   quickUpdateStock,
   adjustStock,
+  transferStockBetweenWarehouses,
   publishProduct,
   unpublishProduct,
   bulkPublish,

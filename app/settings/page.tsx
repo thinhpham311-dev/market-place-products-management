@@ -9,8 +9,11 @@ import { Button } from '@/components/ui/Button';
 import { Icons } from '@/components/ui/Icons';
 import { ThemeSelectorCards, SidebarThemeSelector } from '@/components/ui/ThemeToggle';
 import { LanguageSelectorCards } from '@/components/ui/LanguageSwitcher';
+import { ShopManagementView } from '@/components/dashboard/settings/ShopManagementView';
+import { WarehouseManagementView } from '@/components/dashboard/settings/WarehouseManagementView';
+import { HierarchyTreeView } from '@/components/dashboard/settings/HierarchyTreeView';
 
-type SettingsTab = 'general' | 'appearance' | 'language';
+type SettingsTab = 'general' | 'appearance' | 'language' | 'shops' | 'warehouses' | 'tree';
 
 function SettingsPageContent() {
   const router = useRouter();
@@ -19,9 +22,9 @@ function SettingsPageContent() {
   const dispatch = useAppDispatch();
   const { t } = useTranslation();
 
-  const tabParam = searchParams.get('tab');
-  const currentTab: SettingsTab =
-    tabParam === 'appearance' || tabParam === 'language' ? tabParam : 'general';
+  const tabParam = searchParams.get('tab') as SettingsTab | null;
+  const validTabs: SettingsTab[] = ['general', 'appearance', 'language', 'shops', 'warehouses', 'tree'];
+  const currentTab: SettingsTab = tabParam && validTabs.includes(tabParam) ? tabParam : 'general';
 
   const handleTabChange = (tab: SettingsTab) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -30,7 +33,7 @@ function SettingsPageContent() {
   };
 
   return (
-    <div className="space-y-6 animate-fade-in max-w-3xl">
+    <div className="space-y-6 animate-fade-in max-w-5xl">
       <div>
         <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
           {t('settings.title')}
@@ -42,6 +45,42 @@ function SettingsPageContent() {
 
       {/* URL-synced Settings Tabs */}
       <div className="sticky top-16 z-20 bg-slate-50/95 dark:bg-slate-950/95 backdrop-blur-md pt-2 flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 overflow-x-auto custom-scrollbar scrollbar-thin">
+        <button
+          type="button"
+          onClick={() => handleTabChange('shops')}
+          className={`px-4 py-2.5 text-xs font-bold border-b-2 transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap ${
+            currentTab === 'shops'
+              ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
+              : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+          }`}
+        >
+          <Icons.Store size={15} />
+          Cửa hàng (Shops)
+        </button>
+        <button
+          type="button"
+          onClick={() => handleTabChange('warehouses')}
+          className={`px-4 py-2.5 text-xs font-bold border-b-2 transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap ${
+            currentTab === 'warehouses'
+              ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
+              : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+          }`}
+        >
+          <Icons.Boxes size={15} />
+          Kho hàng (Warehouses)
+        </button>
+        <button
+          type="button"
+          onClick={() => handleTabChange('tree')}
+          className={`px-4 py-2.5 text-xs font-bold border-b-2 transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap ${
+            currentTab === 'tree'
+              ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
+              : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+          }`}
+        >
+          <Icons.ShieldCheck size={15} />
+          Sơ đồ Cây Phân Cấp
+        </button>
         <button
           type="button"
           onClick={() => handleTabChange('general')}
@@ -79,6 +118,12 @@ function SettingsPageContent() {
           {t('settings.tab_language')}
         </button>
       </div>
+
+      {currentTab === 'shops' && <ShopManagementView />}
+
+      {currentTab === 'warehouses' && <WarehouseManagementView />}
+
+      {currentTab === 'tree' && <HierarchyTreeView />}
 
       {currentTab === 'general' && (
         <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm space-y-5">
