@@ -212,30 +212,30 @@ export async function GET(req: Request): Promise<Response> {
       }
     }
 
-    const initialSpus = extractSpuList(initialData);
-    if (initialSpus && initialSpus.length > 0) {
+    if (initialData) {
       return NextResponse.json(initialData);
     }
 
-    // Fallback 1: Authenticate with shop credentials to fetch products for staff/category managers
-    const auth = await getUpstreamAuth();
-    if (auth) {
-      try {
-        const adminHeaders = {
-          "Content-Type": "application/json",
-          [REQUEST_HEADER_API_KEY]: apiKey,
-          authorization: auth.accessToken,
-          [REQUEST_HEADER_CLIENT_ID]: auth.clientId,
-        };
-        const { data: adminData } = await axios.get(upstreamUrl, {
-          headers: adminHeaders,
-        });
-        const adminSpus = extractSpuList(adminData);
-        if (adminSpus && adminSpus.length > 0) {
-          return NextResponse.json(adminData);
+    // Fallback 1: Authenticate with shop credentials only if client has no authorization or request failed
+    if (!headers["authorization"]) {
+      const auth = await getUpstreamAuth();
+      if (auth) {
+        try {
+          const adminHeaders = {
+            "Content-Type": "application/json",
+            [REQUEST_HEADER_API_KEY]: apiKey,
+            authorization: auth.accessToken,
+            [REQUEST_HEADER_CLIENT_ID]: auth.clientId,
+          };
+          const { data: adminData } = await axios.get(upstreamUrl, {
+            headers: adminHeaders,
+          });
+          if (adminData) {
+            return NextResponse.json(adminData);
+          }
+        } catch {
+          // Continue to public list
         }
-      } catch {
-        // Continue to public list
       }
     }
 
@@ -317,33 +317,33 @@ export async function POST(req: Request): Promise<Response> {
       // ignore
     }
 
-    const initialSpus = extractSpuList(initialData);
-    if (initialSpus && initialSpus.length > 0) {
+    if (initialData) {
       return NextResponse.json(initialData);
     }
 
-    const auth = await getUpstreamAuth();
-    if (auth) {
-      try {
-        const adminHeaders = {
-          "Content-Type": "application/json",
-          [REQUEST_HEADER_API_KEY]: apiKey,
-          authorization: auth.accessToken,
-          [REQUEST_HEADER_CLIENT_ID]: auth.clientId,
-        };
-        const { data: adminData } = await axios.get(
-          `${API_NEXT}/v1/api/product/spu/published/list`,
-          {
-            headers: adminHeaders,
-            params: body,
-          },
-        );
-        const adminSpus = extractSpuList(adminData);
-        if (adminSpus && adminSpus.length > 0) {
-          return NextResponse.json(adminData);
+    if (!headers["authorization"]) {
+      const auth = await getUpstreamAuth();
+      if (auth) {
+        try {
+          const adminHeaders = {
+            "Content-Type": "application/json",
+            [REQUEST_HEADER_API_KEY]: apiKey,
+            authorization: auth.accessToken,
+            [REQUEST_HEADER_CLIENT_ID]: auth.clientId,
+          };
+          const { data: adminData } = await axios.get(
+            `${API_NEXT}/v1/api/product/spu/published/list`,
+            {
+              headers: adminHeaders,
+              params: body,
+            },
+          );
+          if (adminData) {
+            return NextResponse.json(adminData);
+          }
+        } catch {
+          // Continue to public list
         }
-      } catch {
-        // ignore
       }
     }
 

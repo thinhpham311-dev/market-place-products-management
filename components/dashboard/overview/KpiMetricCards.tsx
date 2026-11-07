@@ -9,12 +9,14 @@ interface KpiMetricCardsProps {
   metrics: DashboardMetrics;
   products: Product[];
   onNavigateTab: (tab: 'products' | 'inventory' | 'categories') => void;
+  canAccessInventory?: boolean;
 }
 
 export const KpiMetricCards: React.FC<KpiMetricCardsProps> = ({
   metrics,
   products,
   onNavigateTab,
+  canAccessInventory = true,
 }) => {
   const { t, formatCurrency, formatNumber } = useTranslation();
 
@@ -136,12 +138,16 @@ export const KpiMetricCards: React.FC<KpiMetricCardsProps> = ({
           </div>
         </div>
         <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-xs">
-          <button
-            onClick={() => onNavigateTab('inventory')}
-            className="text-indigo-600 dark:text-indigo-400 font-semibold hover:underline flex items-center gap-1 cursor-pointer"
-          >
-            {t('kpi.check_inventory_btn')}
-          </button>
+          {canAccessInventory ? (
+            <button
+              onClick={() => onNavigateTab('inventory')}
+              className="text-indigo-600 dark:text-indigo-400 font-semibold hover:underline flex items-center gap-1 cursor-pointer"
+            >
+              {t('kpi.check_inventory_btn')}
+            </button>
+          ) : (
+            <span className="text-slate-400 text-[11px]">Không có quyền truy cập kho</span>
+          )}
         </div>
       </div>
     </div>

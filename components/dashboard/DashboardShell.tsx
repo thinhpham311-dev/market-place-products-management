@@ -47,9 +47,11 @@ import {
 } from '@/services/CategoryService';
 import { Sidebar, TabType, TAB_ROUTES } from '@/components/dashboard/Sidebar';
 import { Header } from '@/components/dashboard/Header';
+import { AccessDenied } from '@/components/ui/AccessDenied';
 import { Icons } from '@/components/ui/Icons';
 import { useThemeSync } from '@/components/ui/ThemeToggle';
 import { useLanguageSync } from '@/lib/i18n/useTranslation';
+import { isCategoryManager } from '@/lib/auth/permissions';
 
 const AUTH_PATHS = ['/login', '/sign-in', '/register', '/sign-up'];
 
@@ -133,6 +135,38 @@ export const DashboardShell: React.FC<{ children: React.ReactNode }> = ({ childr
       }
 
       try {
+        const isCatManager = isCategoryManager(user);
+
+        // Category Manager is restricted from products & inventory - only fetch categories
+        if (isCatManager) {
+          try {
+            const categoriesRes = await apiGetCategoryAllList();
+            const rawCategories = extractCategoryArray(categoriesRes.data);
+            if (Array.isArray(rawCategories)) {
+              const mappedCategories = mapRawCategoryList(rawCategories);
+              dispatch(setCategories(mappedCategories));
+            }
+            dispatch(removeApiError('/api/category/all/list'));
+          } catch (err: unknown) {
+            const message = getApiErrorMessage(err);
+            dispatch(
+              addApiError({
+                id: '/api/category/all/list',
+                endpoint: '/api/category/all/list',
+                label: 'Danh sách danh mục',
+                status: 500,
+                message,
+                timestamp: new Date().toLocaleTimeString('vi-VN', {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                  second: '2-digit',
+                }),
+              })
+            );
+          }
+          return;
+        }
+
         const [publishedRes, draftedRes, categoriesRes] = await Promise.allSettled([
           apiGetPublishedSpuList(),
           apiGetDraftedSpuList(),
@@ -280,14 +314,16 @@ export const DashboardShell: React.FC<{ children: React.ReactNode }> = ({ childr
       const currentToken = state?.auth?.session?.token;
       const currentSignedIn = state?.auth?.session?.signedIn;
 
-      // Check if in-memory token is valid or needs renewal.
-      // Since tokens are stored in HttpOnly cookies (not localStorage),
-      // currentToken is empty on fresh page loads and must be renewed via HttpOnly cookie.
+      // Check if persisted token is valid or needs renewal.
       const expMs = getJwtExpirationMs(currentToken);
       const isExpiredOrMissing =
         !currentToken || (expMs !== null && expMs <= Date.now() + 60 * 1000);
 
-      if (isExpiredOrMissing || !currentSignedIn) {
+      if (isExpiredOrMissing) {
+        if (!currentSignedIn) {
+          setIsCheckingAuth(false);
+          return;
+        }
         try {
           const newToken = await refreshAccessTokenSingleFlight();
           if (newToken && !isCancelled) {
@@ -486,6 +522,10 @@ export const DashboardShell: React.FC<{ children: React.ReactNode }> = ({ childr
     return null;
   }
 
+  const isCatManager = isCategoryManager(user);
+  const isProductOrInventory =
+    pathname.startsWith('/products') || pathname.startsWith('/inventory');
+
   return (
     <div className="min-h-screen flex bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100">
       {/* Toast Notification Floating Alert */}
@@ -555,11 +595,22 @@ export const DashboardShell: React.FC<{ children: React.ReactNode }> = ({ childr
           onClearApiErrors={() => dispatch(clearApiErrors())}
           user={user}
           onLogout={handleLogout}
+          canCreateProduct={!isCatManager}
         />
 
         {/* Dynamic Main Body */}
         <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto">
-          {apiErrors.length > 0 ? (
+          {isCatManager && isProductOrInventory ? (
+            <AccessDenied
+              featureName={
+                pathname.startsWith('/inventory')
+                  ? 'Quản lý Tồn kho'
+                  : 'Quản lý Sản phẩm'
+              }
+              restrictedRole="CATEGORY_MANAGER"
+              description="Tài khoản có vai trò CATEGORY_MANAGER chỉ được phân quyền quản lý Danh mục & Thương hiệu, không có quyền truy cập vào các trang Quản lý Sản phẩm và Tồn kho."
+            />
+          ) : apiErrors.length > 0 ? (
             <div
               role="alert"
               className="flex flex-col items-center justify-center min-h-[60vh] text-center px-4 animate-fade-in"

@@ -51,11 +51,7 @@ export async function refreshAccessTokenSingleFlight(): Promise<string | null> {
       const apiKey = process.env.NEXT_PUBLIC_API_KEY || API_KEY;
       const payload: Record<string, unknown> = {
         ...(currentAccessToken ? { accessToken: currentAccessToken } : {}),
-        ...(currentRefreshToken
-          ? { refreshToken: currentRefreshToken }
-          : currentAccessToken
-            ? { refreshToken: currentAccessToken }
-            : {}),
+        ...(currentRefreshToken ? { refreshToken: currentRefreshToken } : {}),
         ...(clientId ? { clientId } : {}),
       };
 
@@ -65,9 +61,7 @@ export async function refreshAccessTokenSingleFlight(): Promise<string | null> {
         ...(currentAccessToken ? { authorization: currentAccessToken } : {}),
         ...(currentRefreshToken
           ? { [REQUEST_HEADER_REFRESH_TOKEN]: currentRefreshToken }
-          : currentAccessToken
-            ? { [REQUEST_HEADER_REFRESH_TOKEN]: currentAccessToken }
-            : {}),
+          : {}),
         ...(clientId ? { [REQUEST_HEADER_CLIENT_ID]: clientId } : {}),
       };
 
@@ -171,9 +165,8 @@ BaseService.interceptors.request.use(
       config.headers["authorization"] = accessToken;
     }
 
-    if (refreshToken || (reqUrl.includes("/shop/refreshtoken") && accessToken)) {
-      config.headers[REQUEST_HEADER_REFRESH_TOKEN] =
-        refreshToken || accessToken;
+    if (refreshToken) {
+      config.headers[REQUEST_HEADER_REFRESH_TOKEN] = refreshToken;
     }
 
     const storedClientId = state?.auth?.user?.id;

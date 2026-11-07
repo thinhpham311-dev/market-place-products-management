@@ -3,11 +3,24 @@
 import { useAppSelector } from '@/store/hooks';
 import { InventoryManager } from '@/components/dashboard/InventoryManager';
 import { useTranslation } from '@/lib/i18n/useTranslation';
+import { AccessDenied } from '@/components/ui/AccessDenied';
+import { useProductInventoryPermission } from '@/lib/auth/permissions';
 
 export default function InventoryPage() {
+  const { canAccess } = useProductInventoryPermission();
   const products = useAppSelector((s) => s.products.items);
   const inventoryLogs = useAppSelector((s) => s.products.inventoryLogs);
   const { t } = useTranslation();
+
+  if (!canAccess) {
+    return (
+      <AccessDenied
+        featureName="Quản lý Tồn kho"
+        restrictedRole="CATEGORY_MANAGER"
+        description="Tài khoản có vai trò CATEGORY_MANAGER chỉ được phân quyền quản lý Danh mục & Thương hiệu, không có quyền truy cập vào các trang Quản lý Sản phẩm và Tồn kho."
+      />
+    );
+  }
 
   return (
     <div className="space-y-6 animate-fade-in">

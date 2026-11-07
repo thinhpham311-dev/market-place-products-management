@@ -10,6 +10,7 @@ import { MetricsOverview } from '@/components/dashboard/MetricsOverview';
 import { useTranslation } from '@/lib/i18n/useTranslation';
 import { Icons } from '@/components/ui/Icons';
 import { Button } from '@/components/ui/Button';
+import { isCategoryManager } from '@/lib/auth/permissions';
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -17,6 +18,7 @@ export default function DashboardPage() {
   const { t } = useTranslation();
 
   const user = useAppSelector((s) => s.auth.user);
+  const isCatManager = isCategoryManager(user);
   const products = useAppSelector((s) => s.products.items);
   const categories = useAppSelector((s) => s.categories.items);
   const metrics = useAppSelector(selectDashboardMetrics);
@@ -27,6 +29,11 @@ export default function DashboardPage() {
     const resolvedClientId = urlClientId || user?.id;
 
     if (tab && tab !== 'overview' && TAB_ROUTES[tab]) {
+      if (isCatManager && (tab === 'products' || tab === 'inventory')) {
+        router.replace('/?tab=overview');
+        return;
+      }
+
       const targetRoute = TAB_ROUTES[tab];
       if (resolvedClientId) {
         const [basePath, existingQuery] = targetRoute.split('?');
@@ -47,10 +54,16 @@ export default function DashboardPage() {
       }
       router.replace(`/?${params.toString()}`, { scroll: false });
     }
-  }, [searchParams, router, user?.id]);
+  }, [searchParams, router, user?.id, isCatManager]);
 
-  const handleOpenCreate = () => router.push('/products/new?tab=basic');
-  const handleOpenDetail = (product: Product) => router.push(`/products/${product.id}`);
+  const handleOpenCreate = () => {
+    if (isCatManager) return;
+    router.push('/products/new?tab=basic');
+  };
+  const handleOpenDetail = (product: Product) => {
+    if (isCatManager) return;
+    router.push(`/products/${product.id}`);
+  };
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -74,14 +87,16 @@ export default function DashboardPage() {
           >
             {t('products.export_csv')}
           </Button>
-          <Button
-            variant="primary"
-            size="sm"
-            leftIcon={<Icons.Plus size={15} />}
-            onClick={handleOpenCreate}
-          >
-            {t('header.add_product')}
-          </Button>
+          {!isCatManager && (
+            <Button
+              variant="primary"
+              size="sm"
+              leftIcon={<Icons.Plus size={15} />}
+              onClick={handleOpenCreate}
+            >
+              {t('header.add_product')}
+            </Button>
+          )}
         </div>
       </div>
 
@@ -91,7 +106,12 @@ export default function DashboardPage() {
         products={products}
         categories={categories}
         onSelectProduct={handleOpenDetail}
-        onNavigateTab={(tab) => router.push(TAB_ROUTES[tab])}
+        onNavigateTab={(tab) => {
+          if (isCatManager && (tab === 'products' || tab === 'inventory')) {
+            return;
+          }
+          router.push(TAB_ROUTES[tab]);
+        }}
       />
     </div>
   );

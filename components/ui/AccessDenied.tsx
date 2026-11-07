@@ -9,13 +9,22 @@ import { CATEGORY_BRAND_ALLOWED_ROLES } from '@/lib/auth/permissions';
 
 interface AccessDeniedProps {
   featureName?: string;
+  description?: string;
+  allowedRoles?: readonly string[];
+  restrictedRole?: string;
 }
 
 export const AccessDenied: React.FC<AccessDeniedProps> = ({
   featureName = 'Danh mục & Thương hiệu',
+  description,
+  allowedRoles,
+  restrictedRole,
 }) => {
   const router = useRouter();
   const user = useAppSelector((s) => s.auth.user);
+
+  const displayAllowedRoles =
+    allowedRoles || (!restrictedRole ? CATEGORY_BRAND_ALLOWED_ROLES : undefined);
 
   return (
     <div className="max-w-2xl mx-auto my-12 p-8 sm:p-10 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-xl text-center animate-fade-in">
@@ -32,12 +41,24 @@ export const AccessDenied: React.FC<AccessDeniedProps> = ({
       </h2>
 
       <p className="text-sm text-slate-600 dark:text-slate-300 mt-2.5 max-w-lg mx-auto leading-relaxed">
-        Chỉ các tài khoản được gán vai trò{' '}
-        <strong className="text-indigo-600 dark:text-indigo-400">SUPER_ADMIN</strong>,{' '}
-        <strong className="text-indigo-600 dark:text-indigo-400">CATEGORY_MANAGER</strong>, hoặc{' '}
-        <strong className="text-indigo-600 dark:text-indigo-400">CATALOG_SPECIALIST</strong> mới
-        có thể hiển thị danh sách và sử dụng các công cụ điều khiển chỉnh sửa danh mục và thương
-        hiệu.
+        {description ? (
+          description
+        ) : restrictedRole ? (
+          <>
+            Tài khoản có vai trò{' '}
+            <strong className="text-rose-600 dark:text-rose-400">{restrictedRole}</strong> bị
+            giới hạn và không được phép truy cập vào các trang <strong>{featureName}</strong>.
+          </>
+        ) : (
+          <>
+            Chỉ các tài khoản được gán vai trò{' '}
+            <strong className="text-indigo-600 dark:text-indigo-400">SUPER_ADMIN</strong>,{' '}
+            <strong className="text-indigo-600 dark:text-indigo-400">CATEGORY_MANAGER</strong>, hoặc{' '}
+            <strong className="text-indigo-600 dark:text-indigo-400">CATALOG_SPECIALIST</strong> mới
+            có thể hiển thị danh sách và sử dụng các công cụ điều khiển chỉnh sửa danh mục và thương
+            hiệu.
+          </>
+        )}
       </p>
 
       {/* Current User Info Card */}
@@ -76,22 +97,37 @@ export const AccessDenied: React.FC<AccessDeniedProps> = ({
         )}
       </div>
 
-      {/* Required Roles Pills */}
-      <div className="mt-6">
-        <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-2">
-          Các vai trò hợp lệ:
-        </p>
-        <div className="flex items-center justify-center gap-2 flex-wrap">
-          {CATEGORY_BRAND_ALLOWED_ROLES.map((role) => (
-            <span
-              key={role}
-              className="px-3 py-1 rounded-xl text-xs font-bold font-mono bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800"
-            >
-              {role}
+      {/* Restricted Info Pill */}
+      {restrictedRole && (
+        <div className="mt-5">
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-200 border border-amber-200 dark:border-amber-800 text-xs">
+            <Icons.AlertTriangle size={15} className="text-amber-600 shrink-0" />
+            <span>
+              Tài khoản <strong>{restrictedRole}</strong> chỉ được phân quyền quản lý{' '}
+              <strong>Danh mục & Thương hiệu</strong>.
             </span>
-          ))}
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* Required Roles Pills (if applicable) */}
+      {displayAllowedRoles && displayAllowedRoles.length > 0 && (
+        <div className="mt-6">
+          <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-2">
+            Các vai trò hợp lệ:
+          </p>
+          <div className="flex items-center justify-center gap-2 flex-wrap">
+            {displayAllowedRoles.map((role) => (
+              <span
+                key={role}
+                className="px-3 py-1 rounded-xl text-xs font-bold font-mono bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800"
+              >
+                {role}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="mt-8 flex items-center justify-center gap-3">
         <Button

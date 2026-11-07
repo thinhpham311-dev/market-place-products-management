@@ -6,15 +6,28 @@ import { useAppSelector } from '@/store/hooks';
 import { ProductPublishView } from '@/components/dashboard/products/ProductPublishView';
 import { Button } from '@/components/ui/Button';
 import { Icons } from '@/components/ui/Icons';
+import { AccessDenied } from '@/components/ui/AccessDenied';
+import { useProductInventoryPermission } from '@/lib/auth/permissions';
 
 function PublishProductPageContent() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
+  const { canAccess } = useProductInventoryPermission();
   const product = useAppSelector((s) =>
     s.products.items.find(
       (p) => p.id === id || p.product_id === id || p.spu_id === id || p.sku === id
     )
   );
+
+  if (!canAccess) {
+    return (
+      <AccessDenied
+        featureName="Xuất bản sản phẩm"
+        restrictedRole="CATEGORY_MANAGER"
+        description="Tài khoản có vai trò CATEGORY_MANAGER chỉ được phân quyền quản lý Danh mục & Thương hiệu, không có quyền truy cập vào các trang Quản lý Sản phẩm và Tồn kho."
+      />
+    );
+  }
 
   if (!product) {
     return (

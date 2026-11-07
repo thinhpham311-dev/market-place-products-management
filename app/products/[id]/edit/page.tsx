@@ -29,11 +29,14 @@ import { Product } from '@/types/product';
 import { ProductFormView } from '@/components/dashboard/ProductFormView';
 import { Button } from '@/components/ui/Button';
 import { Icons } from '@/components/ui/Icons';
+import { AccessDenied } from '@/components/ui/AccessDenied';
+import { useProductInventoryPermission } from '@/lib/auth/permissions';
 
 export default function EditProductPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const dispatch = useAppDispatch();
+  const { canAccess } = useProductInventoryPermission();
 
   const product = useAppSelector((s) =>
     s.products.items.find(
@@ -181,6 +184,16 @@ export default function EditProductPage() {
       setIsSubmitting(false);
     }
   };
+
+  if (!canAccess) {
+    return (
+      <AccessDenied
+        featureName="Chỉnh sửa sản phẩm"
+        restrictedRole="CATEGORY_MANAGER"
+        description="Tài khoản có vai trò CATEGORY_MANAGER chỉ được phân quyền quản lý Danh mục & Thương hiệu, không có quyền truy cập vào các trang Quản lý Sản phẩm và Tồn kho."
+      />
+    );
+  }
 
   if (!product) {
     if (isLoadingProduct) {

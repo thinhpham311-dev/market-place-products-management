@@ -84,11 +84,24 @@ export async function POST(req: Request): Promise<Response> {
 
     const cleanAccessToken = rawAuthHeader.replace(/^Bearer\s+/i, "");
 
-    const refreshToken =
-      req.headers.get(REQUEST_HEADER_REFRESH_TOKEN) ||
-      (typeof body?.refreshToken === "string" ? body.refreshToken : "") ||
-      cookies.refreshToken ||
-      cleanAccessToken;
+    const headerRefreshToken = req.headers.get(REQUEST_HEADER_REFRESH_TOKEN);
+    const bodyRefreshToken =
+      typeof body?.refreshToken === "string" ? body.refreshToken : "";
+    const cookieRefreshToken = cookies.refreshToken;
+
+    // A valid refresh token must never be an access token
+    let refreshToken = "";
+    if (headerRefreshToken && headerRefreshToken !== cleanAccessToken) {
+      refreshToken = headerRefreshToken;
+    } else if (bodyRefreshToken && bodyRefreshToken !== cleanAccessToken) {
+      refreshToken = bodyRefreshToken;
+    } else if (cookieRefreshToken && cookieRefreshToken !== cleanAccessToken) {
+      refreshToken = cookieRefreshToken;
+    } else if (headerRefreshToken) {
+      refreshToken = headerRefreshToken;
+    } else if (cookieRefreshToken) {
+      refreshToken = cookieRefreshToken;
+    }
 
     const clientId =
       req.headers.get(REQUEST_HEADER_CLIENT_ID) ||
@@ -144,7 +157,11 @@ export async function POST(req: Request): Promise<Response> {
     if (newAccessToken || newRefreshToken) {
       setAuthCookies(response, {
         accessToken: newAccessToken ? String(newAccessToken) : undefined,
-        refreshToken: newRefreshToken ? String(newRefreshToken) : undefined,
+        refreshToken: newRefreshToken
+          ? String(newRefreshToken)
+          : refreshToken
+            ? String(refreshToken)
+            : undefined,
         clientId: resolvedClientId ? String(resolvedClientId) : undefined,
       });
     }

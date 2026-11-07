@@ -32,9 +32,11 @@ import { useHydrated } from '@/store/StoreProvider';
 import { Product, ProductStatus } from '@/types/product';
 import { ProductList } from '@/components/dashboard/ProductList';
 import { DeleteProductModal } from '@/components/dashboard/products/DeleteProductModal';
+import { AccessDenied } from '@/components/ui/AccessDenied';
 import { useTranslation } from '@/lib/i18n/useTranslation';
 import { Icons } from '@/components/ui/Icons';
 import { Button } from '@/components/ui/Button';
+import { useProductInventoryPermission } from '@/lib/auth/permissions';
 
 export default function ProductsPage() {
   const dispatch = useAppDispatch();
@@ -42,6 +44,7 @@ export default function ProductsPage() {
   const searchParams = useSearchParams();
   const isHydrated = useHydrated();
   const { t } = useTranslation();
+  const { canAccess } = useProductInventoryPermission();
 
   const products = useAppSelector((s) => s.products.items);
   const categories = useAppSelector((s) => s.categories.items);
@@ -56,7 +59,7 @@ export default function ProductsPage() {
   const activeTab = searchParams.get('tab');
 
   const fetchSpuProducts = useCallback(async () => {
-    if (!isHydrated || !signedIn || !accessToken) {
+    if (!isHydrated || !signedIn || !accessToken || !canAccess) {
       return;
     }
 
@@ -240,6 +243,16 @@ export default function ProductsPage() {
       dispatch(showErrorToast(getApiErrorMessage(error)));
     }
   };
+
+  if (!canAccess) {
+    return (
+      <AccessDenied
+        featureName="Quản lý Sản phẩm"
+        restrictedRole="CATEGORY_MANAGER"
+        description="Tài khoản có vai trò CATEGORY_MANAGER chỉ được phân quyền quản lý Danh mục & Thương hiệu, không có quyền truy cập vào các trang Quản lý Sản phẩm và Tồn kho."
+      />
+    );
+  }
 
   return (
     <div className="space-y-6 animate-fade-in">

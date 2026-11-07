@@ -21,10 +21,13 @@ import {
 } from '@/services/CategoryService';
 import { Product } from '@/types/product';
 import { ProductFormView } from '@/components/dashboard/ProductFormView';
+import { AccessDenied } from '@/components/ui/AccessDenied';
+import { useProductInventoryPermission } from '@/lib/auth/permissions';
 
 export default function NewProductPage() {
   const router = useRouter();
   const dispatch = useAppDispatch();
+  const { canAccess } = useProductInventoryPermission();
   const categories = useAppSelector((s) => s.categories.items);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -121,6 +124,16 @@ export default function NewProductPage() {
       setIsSubmitting(false);
     }
   };
+
+  if (!canAccess) {
+    return (
+      <AccessDenied
+        featureName="Tạo sản phẩm mới"
+        restrictedRole="CATEGORY_MANAGER"
+        description="Tài khoản có vai trò CATEGORY_MANAGER chỉ được phân quyền quản lý Danh mục & Thương hiệu, không có quyền truy cập vào các trang Quản lý Sản phẩm và Tồn kho."
+      />
+    );
+  }
 
   return (
     <ProductFormView

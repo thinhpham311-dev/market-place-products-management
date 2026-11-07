@@ -4,7 +4,7 @@ import React from 'react';
 import { RegisteredAccount } from '@/store/auth/accountsSlice';
 import { Icons } from '@/components/ui/Icons';
 import { useTranslation } from '@/lib/i18n/useTranslation';
-import { canManageCategoryAndBrand } from '@/lib/auth/permissions';
+import { canManageCategoryAndBrand, isCategoryManager } from '@/lib/auth/permissions';
 
 interface QuickAccountSwitcherProps {
   accounts: RegisteredAccount[];
@@ -35,6 +35,7 @@ export const QuickAccountSwitcher: React.FC<QuickAccountSwitcherProps> = ({
       <div className="grid grid-cols-1 gap-2 max-h-72 overflow-y-auto custom-scrollbar pr-1">
         {accounts.map((acc) => {
           const hasCategoryBrandAccess = canManageCategoryAndBrand(acc.user);
+          const isCatManager = isCategoryManager(acc.user);
           const isThisAccountLoading =
             isLoading && selectedEmail?.toLowerCase() === acc.email.toLowerCase();
 
@@ -70,6 +71,11 @@ export const QuickAccountSwitcher: React.FC<QuickAccountSwitcherProps> = ({
                     >
                       {acc.user.role}
                     </span>
+                    {isCatManager && (
+                      <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-purple-50 dark:bg-purple-950/50 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800/60">
+                        Chỉ QL Danh mục (Chặn SP & Kho)
+                      </span>
+                    )}
                   </div>
 
                   <div className="flex items-center gap-2 mt-0.5 text-[11px] text-slate-400">

@@ -6,11 +6,24 @@ import { useAppSelector } from '@/store/hooks';
 import { InventoryAdjustView } from '@/components/dashboard/inventory/InventoryAdjustView';
 import { Button } from '@/components/ui/Button';
 import { Icons } from '@/components/ui/Icons';
+import { AccessDenied } from '@/components/ui/AccessDenied';
+import { useProductInventoryPermission } from '@/lib/auth/permissions';
 
 function AdjustInventoryPageContent() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
+  const { canAccess } = useProductInventoryPermission();
   const product = useAppSelector((s) => s.products.items.find((p) => p.id === id));
+
+  if (!canAccess) {
+    return (
+      <AccessDenied
+        featureName="Điều chỉnh Tồn kho"
+        restrictedRole="CATEGORY_MANAGER"
+        description="Tài khoản có vai trò CATEGORY_MANAGER chỉ được phân quyền quản lý Danh mục & Thương hiệu, không có quyền truy cập vào các trang Quản lý Sản phẩm và Tồn kho."
+      />
+    );
+  }
 
   if (!product) {
     return (

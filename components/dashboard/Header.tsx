@@ -21,6 +21,7 @@ interface HeaderProps {
   onClearApiErrors?: () => void;
   user: UserState;
   onLogout: () => void;
+  canCreateProduct?: boolean;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -34,6 +35,7 @@ export const Header: React.FC<HeaderProps> = ({
   onClearApiErrors,
   user,
   onLogout,
+  canCreateProduct = true,
 }) => {
   const [showNotifications, setShowNotifications] = useState(false);
   const notificationRef = useRef<HTMLDivElement>(null);
@@ -206,7 +208,7 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
 
         {/* Primary CTA: Add Product */}
-        {apiErrors.length === 0 && (
+        {apiErrors.length === 0 && canCreateProduct && (
           <Button
             variant="primary"
             size="sm"

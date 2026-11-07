@@ -6,6 +6,7 @@ import { KpiMetricCards } from './overview/KpiMetricCards';
 import { TopSellingProductsCard } from './overview/TopSellingProductsCard';
 import { CategoryRevenueCard } from './overview/CategoryRevenueCard';
 import { LowStockAlertBanner } from './overview/LowStockAlertBanner';
+import { useProductInventoryPermission } from '@/lib/auth/permissions';
 
 interface MetricsOverviewProps {
   metrics: DashboardMetrics;
@@ -22,6 +23,8 @@ export const MetricsOverview: React.FC<MetricsOverviewProps> = ({
   onSelectProduct,
   onNavigateTab,
 }) => {
+  const { canAccess } = useProductInventoryPermission();
+
   const topSellingProducts = [...products]
     .sort((a, b) => b.soldCount - a.soldCount)
     .slice(0, 4);
@@ -49,6 +52,7 @@ export const MetricsOverview: React.FC<MetricsOverviewProps> = ({
         metrics={metrics}
         products={products}
         onNavigateTab={onNavigateTab}
+        canAccessInventory={canAccess}
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -56,6 +60,7 @@ export const MetricsOverview: React.FC<MetricsOverviewProps> = ({
           products={topSellingProducts}
           onSelectProduct={onSelectProduct}
           onNavigateProducts={() => onNavigateTab('products')}
+          canAccessProducts={canAccess}
         />
 
         <CategoryRevenueCard
@@ -64,11 +69,13 @@ export const MetricsOverview: React.FC<MetricsOverviewProps> = ({
         />
       </div>
 
-      <LowStockAlertBanner
-        lowStockList={lowStockList}
-        products={products}
-        onNavigateInventory={() => onNavigateTab('inventory')}
-      />
+      {canAccess && (
+        <LowStockAlertBanner
+          lowStockList={lowStockList}
+          products={products}
+          onNavigateInventory={() => onNavigateTab('inventory')}
+        />
+      )}
     </div>
   );
 };

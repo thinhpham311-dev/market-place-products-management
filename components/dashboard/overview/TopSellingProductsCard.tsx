@@ -9,12 +9,14 @@ interface TopSellingProductsCardProps {
   products: Product[];
   onSelectProduct: (product: Product) => void;
   onNavigateProducts: () => void;
+  canAccessProducts?: boolean;
 }
 
 export const TopSellingProductsCard: React.FC<TopSellingProductsCardProps> = ({
   products,
   onSelectProduct,
   onNavigateProducts,
+  canAccessProducts = true,
 }) => {
   const { t, tp, tc, formatCurrency, formatNumber } = useTranslation();
 
@@ -29,13 +31,15 @@ export const TopSellingProductsCard: React.FC<TopSellingProductsCardProps> = ({
             {t('kpi.top_selling_sub')}
           </p>
         </div>
-        <button
-          onClick={onNavigateProducts}
-          className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 cursor-pointer"
-        >
-          {t('see_more')}
-          <Icons.ChevronRight size={14} />
-        </button>
+        {canAccessProducts && (
+          <button
+            onClick={onNavigateProducts}
+            className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 cursor-pointer"
+          >
+            {t('see_more')}
+            <Icons.ChevronRight size={14} />
+          </button>
+        )}
       </div>
 
       <div className="divide-y divide-slate-100 dark:divide-slate-800/80">
@@ -44,8 +48,12 @@ export const TopSellingProductsCard: React.FC<TopSellingProductsCardProps> = ({
           return (
             <div
               key={product.id}
-              onClick={() => onSelectProduct(product)}
-              className="py-3.5 first:pt-0 last:pb-0 flex items-center justify-between gap-4 hover:bg-slate-50/80 dark:hover:bg-slate-800/40 p-2 rounded-xl transition-colors cursor-pointer"
+              onClick={() => canAccessProducts && onSelectProduct(product)}
+              className={`py-3.5 first:pt-0 last:pb-0 flex items-center justify-between gap-4 p-2 rounded-xl transition-colors ${
+                canAccessProducts
+                  ? 'hover:bg-slate-50/80 dark:hover:bg-slate-800/40 cursor-pointer'
+                  : 'cursor-default'
+              }`}
             >
               <div className="flex items-center gap-3.5 min-w-0 flex-1">
                 <div className="relative shrink-0">

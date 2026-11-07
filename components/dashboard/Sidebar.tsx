@@ -8,7 +8,7 @@ import { useTranslation } from '@/lib/i18n/useTranslation';
 import { Icons } from '@/components/ui/Icons';
 import { SIDEBAR_THEMES } from './sidebar/sidebarThemes';
 import { SidebarBranchCard, SidebarFooterWidgets } from './sidebar/SidebarWidgets';
-import { canManageCategoryAndBrand } from '@/lib/auth/permissions';
+import { canManageCategoryAndBrand, isCategoryManager } from '@/lib/auth/permissions';
 
 export type TabType = 'overview' | 'products' | 'inventory' | 'categories' | 'analytics' | 'settings';
 
@@ -50,6 +50,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const { t } = useTranslation();
   const user = useAppSelector((s) => s.auth.user);
   const canManageCategoryBrand = canManageCategoryAndBrand(user);
+  const isCatManager = isCategoryManager(user);
 
   const sidebarTheme: SidebarTheme = useAppSelector(
     (s) => s.settings?.theme?.sidebarTheme ?? 'adaptive'
@@ -81,6 +82,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   const navItems = rawNavItems.filter((item) => {
     if (item.id === 'categories' && !canManageCategoryBrand) {
+      return false;
+    }
+    if ((item.id === 'products' || item.id === 'inventory') && isCatManager) {
       return false;
     }
     return true;

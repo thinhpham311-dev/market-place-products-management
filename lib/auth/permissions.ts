@@ -23,6 +23,50 @@ export function normalizeRoleKey(roleOrAuthority?: string | null): string {
 }
 
 /**
+ * Checks whether user has the CATEGORY_MANAGER role (and not an overriding SUPER_ADMIN / ADMIN role).
+ */
+export function isCategoryManager(
+  user?: { role?: string; authority?: string[] } | null
+): boolean {
+  if (!user) return false;
+
+  const normalizedRole = normalizeRoleKey(user.role);
+  if (normalizedRole === 'SUPER_ADMIN' || normalizedRole === 'ADMIN') {
+    return false;
+  }
+
+  if (normalizedRole === 'CATEGORY_MANAGER') {
+    return true;
+  }
+
+  if (Array.isArray(user.authority)) {
+    const authKeys = user.authority.map((a) => normalizeRoleKey(a));
+    if (authKeys.includes('SUPER_ADMIN') || authKeys.includes('ADMIN')) {
+      return false;
+    }
+    if (authKeys.includes('CATEGORY_MANAGER')) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Checks whether user has permission to access product and inventory management pages.
+ * Role CATEGORY_MANAGER is blocked from accessing products and inventory.
+ */
+export function canAccessProductsAndInventory(
+  user?: { role?: string; authority?: string[] } | null
+): boolean {
+  if (!user) return false;
+  if (isCategoryManager(user)) {
+    return false;
+  }
+  return true;
+}
+
+/**
  * Checks whether a user has permissions to view category/brand list and controls to edit them.
  * Authorized roles: SUPER_ADMIN, CATEGORY_MANAGER, CATALOG_SPECIALIST.
  */
@@ -63,5 +107,22 @@ export function useCategoryBrandPermission() {
     userRole: user?.role,
     userAuthorities: user?.authority || [],
     allowedRoles: CATEGORY_BRAND_ALLOWED_ROLES,
+  };
+}
+
+/**
+ * React hook to quickly inspect product & inventory permission in components.
+ */
+export function useProductInventoryPermission() {
+  const user = useAppSelector((s) => s.auth.user);
+  const isCatManager = isCategoryManager(user);
+  const canAccess = canAccessProductsAndInventory(user);
+
+  return {
+    canAccess,
+    isCategoryManager: isCatManager,
+    user,
+    userRole: user?.role,
+    userAuthorities: user?.authority || [],
   };
 }
