@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { UserState } from '@/store/auth/userSlice';
 import { useTranslation } from '@/lib/i18n/useTranslation';
 import { Icons } from '@/components/ui/Icons';
+import { isSuperAdmin, isShopOwner } from '@/lib/auth/permissions';
 
 interface UserProfileMenuProps {
   user: UserState;
@@ -27,10 +28,47 @@ export const UserProfileMenu: React.FC<UserProfileMenuProps> = ({ user, onLogout
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const displayName = user.userName || 'Admin Shop';
-  const displayRole = user.role || 'Chủ gian hàng';
+  const isSuper = isSuperAdmin(user);
+  const isOwner = isShopOwner(user);
+
+  // Exact roles returned from the API
+  const apiRoles: string[] =
+    Array.isArray(user.authority) && user.authority.length > 0
+      ? user.authority
+      : user.role
+      ? [user.role]
+      : ['SHOP_OWNER'];
+
+  const apiRoleText = apiRoles.join(', ');
+
+  const displayName =
+    user.userName && user.userName !== 'Super Admin' && user.userName !== 'Shop Admin'
+      ? user.userName
+      : isSuper
+      ? 'Admin Shop (Root)'
+      : isOwner
+      ? (user.email === 'owneradmin@novashop.vn' ? 'Owner Admin' : 'Trần Minh (Shop Owner)')
+      : user.email
+      ? user.email.split('@')[0]
+      : 'Shop Admin';
+
   const displayEmail = user.email || 'admin@novashop.vn';
-  const displayAvatar = user.avatar || 'AD';
+  const displayAvatar =
+    user.avatar && user.avatar !== 'SA'
+      ? user.avatar
+      : displayName
+      ? displayName.slice(0, 2).toUpperCase()
+      : isSuper
+      ? 'SA'
+      : isOwner
+      ? 'SO'
+      : 'AD';
+
+  const avatarGradient = isSuper
+    ? 'from-purple-600 to-violet-800'
+    : isOwner
+    ? 'from-indigo-600 to-blue-600'
+    : 'from-indigo-500 to-pink-500';
 
   return (
     <div className="relative pl-2 border-l border-slate-200 dark:border-slate-800" ref={menuRef}>
@@ -38,16 +76,27 @@ export const UserProfileMenu: React.FC<UserProfileMenuProps> = ({ user, onLogout
         type="button"
         onClick={() => setOpen((prev) => !prev)}
         className="flex items-center gap-2.5 p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-        title={displayName}
+        title={`${displayName} (${apiRoleText})`}
       >
-        <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-indigo-500 to-pink-500 text-white font-semibold text-xs flex items-center justify-center ring-2 ring-indigo-500/20 shrink-0">
+        <div className={`w-8 h-8 rounded-full bg-gradient-to-tr ${avatarGradient} text-white font-semibold text-xs flex items-center justify-center ring-2 ring-indigo-500/20 shrink-0`}>
           {displayAvatar}
         </div>
-        <div className="hidden lg:block text-left">
+        <div className="hidden sm:block text-left">
           <p className="text-xs font-semibold text-slate-800 dark:text-slate-200 leading-tight">
             {displayName}
           </p>
-          <p className="text-[10px] text-slate-400 leading-tight">{displayRole}</p>
+          <div className="flex items-center gap-1 mt-0.5">
+            <span
+              className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded border leading-tight ${
+                isSuper
+                  ? 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/70 dark:text-purple-300 dark:border-purple-800'
+                  : 'bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/70 dark:text-indigo-300 dark:border-indigo-800'
+              }`}
+              title={`Role từ API: ${apiRoleText}`}
+            >
+              {user.role || apiRoleText}
+            </span>
+          </div>
         </div>
         <Icons.ChevronDown
           size={14}
@@ -58,11 +107,11 @@ export const UserProfileMenu: React.FC<UserProfileMenuProps> = ({ user, onLogout
       </button>
 
       {open && (
-        <div className="absolute right-0 mt-2 w-64 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 p-2 z-50 animate-in fade-in zoom-in-95">
+        <div className="absolute right-0 mt-2 w-72 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 p-2 z-50 animate-in fade-in zoom-in-95">
           {/* User Info Header */}
           <div className="px-3 py-2.5 border-b border-slate-100 dark:border-slate-800">
             <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-indigo-500 to-pink-500 text-white font-bold text-xs flex items-center justify-center shrink-0">
+              <div className={`w-9 h-9 rounded-full bg-gradient-to-tr ${avatarGradient} text-white font-bold text-xs flex items-center justify-center shrink-0`}>
                 {displayAvatar}
               </div>
               <div className="min-w-0 flex-1">
@@ -74,13 +123,28 @@ export const UserProfileMenu: React.FC<UserProfileMenuProps> = ({ user, onLogout
                 </p>
               </div>
             </div>
-            <div className="mt-2 flex items-center gap-1.5">
-              <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-semibold bg-indigo-50 text-indigo-600 dark:bg-indigo-950/60 dark:text-indigo-300 border border-indigo-200/60 dark:border-indigo-800/60">
-                {displayRole}
-              </span>
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium bg-emerald-50 text-emerald-600 dark:bg-emerald-950/50 dark:text-emerald-400">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> {t('profile.online')}
-              </span>
+
+            {/* Direct Roles Display from API */}
+            <div className="mt-2.5 pt-2 border-t border-slate-100 dark:border-slate-800 space-y-1.5">
+              <div className="flex items-center justify-between text-[10px] text-slate-400 font-medium">
+                <span>Roles từ API:</span>
+                <span className="font-mono text-[9px] bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded text-slate-600 dark:text-slate-300">
+                  {apiRoles.length} role
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {apiRoles.map((role) => (
+                  <span
+                    key={role}
+                    className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold font-mono bg-indigo-50 text-indigo-700 dark:bg-indigo-950/70 dark:text-indigo-300 border border-indigo-200/80 dark:border-indigo-800/80 shadow-xs"
+                  >
+                    {role}
+                  </span>
+                ))}
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium bg-emerald-50 text-emerald-600 dark:bg-emerald-950/50 dark:text-emerald-400">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> {t('profile.online')}
+                </span>
+              </div>
             </div>
           </div>
 

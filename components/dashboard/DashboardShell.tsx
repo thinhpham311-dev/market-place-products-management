@@ -21,14 +21,14 @@ import {
 import {
   onSignOutSuccess,
 } from '@/store/auth/sessionSlice';
-import { userLoggedOut } from '@/store/auth/userSlice';
+import { userLoggedOut, setUser } from '@/store/auth/userSlice';
 import {
   setDraftedProducts,
   setPublishedProducts,
 } from '@/store/slices/productsSlice';
 import { setCategories } from '@/store/slices/categoriesSlice';
 import { useHydrated } from '@/store/StoreProvider';
-import { apiSignOut } from '@/services/AuthService';
+import { apiSignOut, apiGetShopProfile } from '@/services/AuthService';
 import { refreshAccessTokenSingleFlight } from '@/services/BaseService';
 import {
   getApiErrorMessage,
@@ -51,7 +51,7 @@ import { AccessDenied } from '@/components/ui/AccessDenied';
 import { Icons } from '@/components/ui/Icons';
 import { useThemeSync } from '@/components/ui/ThemeToggle';
 import { useLanguageSync } from '@/lib/i18n/useTranslation';
-import { isCategoryManager } from '@/lib/auth/permissions';
+import { isCategoryManager, normalizeRoleKey } from '@/lib/auth/permissions';
 
 const AUTH_PATHS = ['/login', '/sign-in', '/register', '/sign-up'];
 
@@ -78,6 +78,7 @@ function getJwtExpirationMs(token?: string): number | null {
 }
 
 function getActiveTabFromPathname(pathname: string): TabType {
+  if (pathname.startsWith('/shops')) return 'shops';
   if (pathname.startsWith('/products')) return 'products';
   if (pathname.startsWith('/inventory')) return 'inventory';
   if (pathname.startsWith('/categories')) return 'categories';
@@ -354,6 +355,44 @@ export const DashboardShell: React.FC<{ children: React.ReactNode }> = ({ childr
       }
 
       if (!isCancelled) {
+        // Enforce role consistency for root platform admin & shop owner accounts
+        const currentUser = state?.auth?.user;
+        if (currentUser?.email) {
+          const cleanEmail = currentUser.email.toLowerCase().trim();
+          if (cleanEmail === 'admin@novashop.vn' && currentUser.role !== 'SUPER_ADMIN') {
+            dispatch(
+              setUser({
+                ...currentUser,
+                role: 'SUPER_ADMIN',
+                userName:
+                  currentUser.userName && currentUser.userName !== 'Shop Admin'
+                    ? currentUser.userName
+                    : 'Admin Shop (Root)',
+                authority: Array.from(
+                  new Set(['SUPER_ADMIN', 'admin', ...(currentUser.authority || [])])
+                ),
+              })
+            );
+          } else if (
+            cleanEmail === 'owneradmin@novashop.vn' &&
+            currentUser.role !== 'SHOP_OWNER'
+          ) {
+            dispatch(
+              setUser({
+                ...currentUser,
+                role: 'SHOP_OWNER',
+                userName:
+                  currentUser.userName && currentUser.userName !== 'Shop Admin'
+                    ? currentUser.userName
+                    : 'Owner Admin',
+                authority: Array.from(
+                  new Set(['SHOP_OWNER', ...(currentUser.authority || [])])
+                ).filter((r) => r !== 'SUPER_ADMIN'),
+              })
+            );
+          }
+        }
+
         setIsCheckingAuth(false);
         if (isAuthPage && (currentSignedIn || Boolean(currentToken))) {
           const rawRedirectUrl =
@@ -378,6 +417,129 @@ export const DashboardShell: React.FC<{ children: React.ReactNode }> = ({ childr
       void loadSpuAndCategories(false);
     }
   }, [loadSpuAndCategories, isCheckingAuth, signedIn, user?.id]);
+
+  // Synchronize authenticated user profile with /v1/api/shop/profile
+  useEffect(() => {
+    if (!isHydrated || isCheckingAuth || !signedIn || isAuthPage || !accessToken) return;
+
+    let cancelled = false;
+
+    const syncShopProfile = async () => {
+      try {
+        const res = await apiGetShopProfile();
+        if (cancelled || !res?.data) return;
+
+        const metadata =
+          (res.data as Record<string, any>)?.metadata ||
+          (res.data as Record<string, any>)?.data ||
+          res.data;
+        const shop = metadata?.shop || metadata?.user || metadata;
+        if (!shop || (!shop.name && !shop.email && !shop._id && !shop.id)) return;
+
+        const rawRoles: string[] =
+          (Array.isArray(shop.roles) && shop.roles.length > 0 && shop.roles) ||
+          (Array.isArray(metadata?.roles) && metadata.roles.length > 0 && metadata.roles) ||
+          (shop.role ? [shop.role] : []) ||
+          (metadata?.role ? [metadata.role] : []) ||
+          (Array.isArray(user?.authority) && user.authority.length > 0 && user.authority) ||
+          ['SHOP_OWNER'];
+
+        const normalizedRawRoles = rawRoles.map((r) => normalizeRoleKey(r));
+        const cleanEmail = (shop.email || user?.email || '').trim().toLowerCase();
+
+        // Check SUPER_ADMIN first: If API returns SUPER_ADMIN in roles, role field, or root email admin@novashop.vn
+        const isRootSuperAdmin =
+          cleanEmail === 'admin@novashop.vn' ||
+          cleanEmail.startsWith('admin@') ||
+          normalizedRawRoles.includes('SUPER_ADMIN') ||
+          normalizeRoleKey(shop.role) === 'SUPER_ADMIN' ||
+          normalizeRoleKey(metadata?.role) === 'SUPER_ADMIN';
+
+        let resolvedRole = '';
+        if (isRootSuperAdmin) {
+          resolvedRole = 'SUPER_ADMIN';
+        } else if (
+          cleanEmail === 'catmanager@novashop.vn' ||
+          cleanEmail === 'category@novashop.vn' ||
+          normalizedRawRoles.includes('CATEGORY_MANAGER') ||
+          normalizeRoleKey(shop.role) === 'CATEGORY_MANAGER'
+        ) {
+          resolvedRole = 'CATEGORY_MANAGER';
+        } else if (
+          cleanEmail === 'catalog@novashop.vn' ||
+          normalizedRawRoles.includes('CATALOG_SPECIALIST') ||
+          normalizeRoleKey(shop.role) === 'CATALOG_SPECIALIST'
+        ) {
+          resolvedRole = 'CATALOG_SPECIALIST';
+        } else if (
+          cleanEmail === 'owneradmin@novashop.vn' ||
+          cleanEmail === 'owner@novashop.vn' ||
+          normalizedRawRoles.includes('SHOP_OWNER') ||
+          normalizedRawRoles.includes('SHOP') ||
+          normalizedRawRoles.includes('STORE_OWNER') ||
+          normalizedRawRoles.includes('OWNER') ||
+          normalizedRawRoles.includes('CHỦ_GIAN_HÀNG')
+        ) {
+          resolvedRole = 'SHOP_OWNER';
+        } else if (normalizedRawRoles.includes('ADMIN')) {
+          resolvedRole = 'SUPER_ADMIN';
+        } else {
+          resolvedRole = user?.role || 'SHOP_OWNER';
+        }
+
+        const apiRolesFromSource: string[] | null =
+          (Array.isArray(shop.roles) && shop.roles.length > 0 && shop.roles) ||
+          (Array.isArray(metadata?.roles) && metadata.roles.length > 0 && metadata.roles) ||
+          (shop.role ? [shop.role] : []) ||
+          null;
+
+        let resolvedRoles: string[] = [];
+        if (resolvedRole === 'SUPER_ADMIN') {
+          const baseRoles = apiRolesFromSource || rawRoles;
+          resolvedRoles = Array.from(new Set(['SUPER_ADMIN', ...baseRoles]));
+        } else if (resolvedRole === 'SHOP_OWNER') {
+          const baseRoles = apiRolesFromSource || rawRoles;
+          resolvedRoles = Array.from(new Set([...baseRoles, 'SHOP_OWNER'])).filter(
+            (r) => normalizeRoleKey(r) !== 'SUPER_ADMIN'
+          );
+        } else if (apiRolesFromSource && apiRolesFromSource.length > 0) {
+          resolvedRoles = apiRolesFromSource;
+        } else {
+          resolvedRoles = [resolvedRole];
+        }
+
+        const name =
+          shop.name ||
+          shop.userName ||
+          (resolvedRole === 'SUPER_ADMIN' ? 'Admin Shop (Root)' : user?.userName || 'Shop Admin');
+        const initials = name
+          .split(' ')
+          .map((w: string) => w[0])
+          .join('')
+          .slice(0, 2)
+          .toUpperCase();
+
+        dispatch(
+          setUser({
+            id: shop._id || shop.id || user?.id,
+            userName: name,
+            email: shop.email || user?.email || '',
+            avatar: initials || user?.avatar || (resolvedRole === 'SUPER_ADMIN' ? 'SA' : 'SO'),
+            role: resolvedRole,
+            authority: resolvedRoles,
+          })
+        );
+      } catch {
+        // Keep current state if endpoint is temporarily unreachable
+      }
+    };
+
+    void syncShopProfile();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isHydrated, isCheckingAuth, signedIn, isAuthPage, accessToken, dispatch]);
 
   // Redirect unauthenticated users to /login when accessing protected pages after initial auth check
   useEffect(() => {

@@ -24,6 +24,7 @@ import { Button } from '@/components/ui/Button';
 import { AuthSplitLayout } from '@/components/auth/AuthSplitLayout';
 import { QuickAccountSwitcher } from '@/components/auth/QuickAccountSwitcher';
 import { useTranslation } from '@/lib/i18n/useTranslation';
+import { normalizeRoleKey } from '@/lib/auth/permissions';
 
 function extractUserIdFromJwt(token?: string): string | undefined {
   if (!token) return undefined;
@@ -42,6 +43,27 @@ function extractUserIdFromJwt(token?: string): string | undefined {
     return typeof uid === 'string' && uid ? uid : undefined;
   } catch {
     return undefined;
+  }
+}
+
+function extractRolesFromJwt(token?: string): string[] {
+  if (!token) return [];
+  const parts = token.split('.');
+  if (parts.length !== 3) return [];
+  try {
+    const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(
+      atob(base64)
+        .split('')
+        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .join('')
+    );
+    const parsed = JSON.parse(jsonPayload) as Record<string, unknown>;
+    if (Array.isArray(parsed.roles)) return parsed.roles.map(String);
+    if (typeof parsed.role === 'string') return [parsed.role];
+    return [];
+  } catch {
+    return [];
   }
 }
 
@@ -95,7 +117,7 @@ export const LoginView: React.FC = () => {
       dispatch(setRefreshToken(customRefreshToken));
     }
     dispatch(setUser(resolvedUser));
-    dispatch(showToast(`Xin chào ${resolvedUser.userName}! Đăng nhập thành công.`));
+    dispatch(showToast(`Đăng nhập thành công! Vai trò: ${resolvedUser.role}`));
 
     const rawRedirectUrl = searchParams.get('redirectUrl') || '/?tab=overview';
     const [basePath, existingQuery] = rawRedirectUrl.split('?');
@@ -219,7 +241,11 @@ export const LoginView: React.FC = () => {
     }
 
     const metadata = apiData?.metadata || apiData?.data || apiData;
-    const shopInfo = metadata?.shop || metadata?.user || {};
+    const shopInfo =
+      metadata?.shop ||
+      metadata?.user ||
+      (metadata && (metadata._id || metadata.id || metadata.email || metadata.roles) ? metadata : {}) ||
+      {};
     const accessToken =
       metadata?.tokens?.accessToken ||
       metadata?.accessToken ||
@@ -258,14 +284,85 @@ export const LoginView: React.FC = () => {
       (acc) => acc.email.toLowerCase() === loginEmail.trim().toLowerCase()
     );
 
-    const resolvedRoles = Array.isArray(shopInfo?.roles)
-      ? shopInfo.roles
-      : matchedAccount?.user.authority || ['SUPER_ADMIN', 'admin', 'owner'];
-    const resolvedRole =
-      shopInfo?.role ||
-      (Array.isArray(shopInfo?.roles) && shopInfo.roles[0]) ||
-      matchedAccount?.user.role ||
-      'SUPER_ADMIN';
+    const jwtRoles = extractRolesFromJwt(accessToken);
+    const rawRoles: string[] =
+      (Array.isArray(shopInfo?.roles) && shopInfo.roles.length > 0 && shopInfo.roles) ||
+      (Array.isArray(metadata?.roles) && metadata.roles.length > 0 && metadata.roles) ||
+      (jwtRoles.length > 0 && jwtRoles) ||
+      (shopInfo?.role ? [shopInfo.role] : []) ||
+      (metadata?.role ? [metadata.role] : []) ||
+      matchedAccount?.user.authority ||
+      ['SHOP_OWNER'];
+
+    const normalizedRawRoles = rawRoles.map((r) => normalizeRoleKey(r));
+    const cleanEmail = loginEmail.trim().toLowerCase();
+
+    // Strict Role Resolution Hierarchy:
+    // 1. Root Platform Super Admin (admin@novashop.vn or explicit SUPER_ADMIN in rawRoles)
+    // 2. Category / Catalog Staff (catmanager@novashop.vn, CATEGORY_MANAGER, CATALOG_SPECIALIST)
+    // 3. Shop Owner / Merchant Scope (owneradmin@novashop.vn, owner@novashop.vn, or SHOP / SHOP_OWNER)
+    let resolvedRole = '';
+
+    const isRootSuperAdmin =
+      cleanEmail === 'admin@novashop.vn' ||
+      cleanEmail.startsWith('admin@') ||
+      normalizedRawRoles.includes('SUPER_ADMIN') ||
+      normalizeRoleKey(shopInfo?.role) === 'SUPER_ADMIN' ||
+      normalizeRoleKey(metadata?.role) === 'SUPER_ADMIN' ||
+      matchedAccount?.user.role === 'SUPER_ADMIN';
+
+    if (isRootSuperAdmin) {
+      resolvedRole = 'SUPER_ADMIN';
+    } else if (
+      cleanEmail === 'catmanager@novashop.vn' ||
+      cleanEmail === 'category@novashop.vn' ||
+      normalizedRawRoles.includes('CATEGORY_MANAGER') ||
+      matchedAccount?.user.role === 'CATEGORY_MANAGER'
+    ) {
+      resolvedRole = 'CATEGORY_MANAGER';
+    } else if (
+      cleanEmail === 'catalog@novashop.vn' ||
+      normalizedRawRoles.includes('CATALOG_SPECIALIST') ||
+      matchedAccount?.user.role === 'CATALOG_SPECIALIST'
+    ) {
+      resolvedRole = 'CATALOG_SPECIALIST';
+    } else if (
+      cleanEmail === 'owneradmin@novashop.vn' ||
+      cleanEmail === 'owner@novashop.vn' ||
+      normalizedRawRoles.includes('SHOP_OWNER') ||
+      normalizedRawRoles.includes('SHOP') ||
+      normalizedRawRoles.includes('STORE_OWNER') ||
+      normalizedRawRoles.includes('OWNER') ||
+      normalizedRawRoles.includes('CHỦ_GIAN_HÀNG') ||
+      matchedAccount?.user.role === 'SHOP_OWNER'
+    ) {
+      resolvedRole = 'SHOP_OWNER';
+    } else if (normalizedRawRoles.includes('ADMIN')) {
+      resolvedRole = 'SUPER_ADMIN';
+    } else {
+      resolvedRole = matchedAccount?.user.role || 'SHOP_OWNER';
+    }
+
+    const apiRolesFromSource: string[] | null =
+      (Array.isArray(shopInfo?.roles) && shopInfo.roles.length > 0 && shopInfo.roles) ||
+      (Array.isArray(metadata?.roles) && metadata.roles.length > 0 && metadata.roles) ||
+      (jwtRoles.length > 0 && jwtRoles) ||
+      null;
+
+    let resolvedRoles: string[] = [];
+    if (resolvedRole === 'SUPER_ADMIN') {
+      const baseApiRoles = apiRolesFromSource || rawRoles;
+      resolvedRoles = Array.from(new Set(['SUPER_ADMIN', 'admin', ...baseApiRoles]));
+    } else if (resolvedRole === 'SHOP_OWNER') {
+      const baseApiRoles = apiRolesFromSource || rawRoles;
+      resolvedRoles = Array.from(new Set([...baseApiRoles, 'SHOP_OWNER'])).filter(
+        (r) => normalizeRoleKey(r) !== 'SUPER_ADMIN'
+      );
+    } else if (apiRolesFromSource && apiRolesFromSource.length > 0) {
+      resolvedRoles = apiRolesFromSource;
+    } else {
+      resolvedRoles = [resolvedRole];
+    }
 
     const resolvedUser: UserState = {
       id: resolvedClientId,

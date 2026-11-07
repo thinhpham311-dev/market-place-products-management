@@ -2,6 +2,7 @@ import { useAppSelector } from '@/store/hooks';
 
 export const CATEGORY_BRAND_ALLOWED_ROLES = [
   'SUPER_ADMIN',
+  'SHOP_OWNER',
   'CATEGORY_MANAGER',
   'CATALOG_SPECIALIST',
   'ADMIN',
@@ -47,6 +48,106 @@ export function isCategoryManager(
     if (authKeys.includes('CATEGORY_MANAGER')) {
       return true;
     }
+  }
+
+  return false;
+}
+
+/**
+ * Checks whether user has SUPER_ADMIN role (Platform Root).
+ */
+export function isSuperAdmin(
+  user?: { role?: string; authority?: string[]; email?: string } | null
+): boolean {
+  if (!user) return false;
+
+  // Root platform administrator account is ALWAYS Super Admin
+  if (user.email && user.email.toLowerCase().trim() === 'admin@novashop.vn') {
+    return true;
+  }
+
+  const normalizedRole = normalizeRoleKey(user.role);
+  const authKeys = Array.isArray(user.authority)
+    ? user.authority.map((a) => normalizeRoleKey(a))
+    : [];
+
+  // Explicit SUPER_ADMIN role or authority takes highest precedence
+  if (normalizedRole === 'SUPER_ADMIN' || authKeys.includes('SUPER_ADMIN')) {
+    return true;
+  }
+
+  // If user role is explicitly SHOP_OWNER or merchant-only role without SUPER_ADMIN
+  if (
+    normalizedRole === 'SHOP_OWNER' ||
+    normalizedRole === 'STORE_OWNER' ||
+    normalizedRole === 'SHOP' ||
+    normalizedRole === 'OWNER' ||
+    normalizedRole === 'CHỦ_GIAN_HÀNG'
+  ) {
+    return false;
+  }
+
+  // Role ADMIN acts as Super Admin if NOT explicitly a shop owner account
+  if (normalizedRole === 'ADMIN' || authKeys.includes('ADMIN')) {
+    if (
+      !authKeys.includes('SHOP_OWNER') &&
+      !authKeys.includes('STORE_OWNER') &&
+      user.email?.toLowerCase().trim() !== 'owneradmin@novashop.vn'
+    ) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Checks whether user has SHOP_OWNER role (Merchant Scope - Chuỗi Cửa Hàng).
+ */
+export function isShopOwner(
+  user?: { role?: string; authority?: string[]; email?: string } | null
+): boolean {
+  if (!user) return false;
+
+  // Super Admin is platform root administrator, NEVER a shop owner
+  if (isSuperAdmin(user)) {
+    return false;
+  }
+
+  // Explicit shop owner accounts
+  if (
+    user.email &&
+    (user.email.toLowerCase().trim() === 'owneradmin@novashop.vn' ||
+      user.email.toLowerCase().trim() === 'owner@novashop.vn')
+  ) {
+    return true;
+  }
+
+  const normalizedRole = normalizeRoleKey(user.role);
+  const authKeys = Array.isArray(user.authority)
+    ? user.authority.map((a) => normalizeRoleKey(a))
+    : [];
+
+  // If explicitly designated as SHOP_OWNER, STORE_OWNER, SHOP, OWNER
+  if (
+    normalizedRole === 'SHOP_OWNER' ||
+    normalizedRole === 'STORE_OWNER' ||
+    normalizedRole === 'OWNER' ||
+    normalizedRole === 'SHOP' ||
+    normalizedRole === 'CHỦ_GIAN_HÀNG'
+  ) {
+    return true;
+  }
+
+  // If authorities include SHOP_OWNER, STORE_OWNER, or SHOP
+  if (
+    authKeys.includes('SHOP_OWNER') ||
+    authKeys.includes('STORE_OWNER') ||
+    authKeys.includes('OWNER') ||
+    authKeys.includes('SHOP') ||
+    authKeys.includes('CHỦ_GIAN_HÀNG')
+  ) {
+    return true;
   }
 
   return false;

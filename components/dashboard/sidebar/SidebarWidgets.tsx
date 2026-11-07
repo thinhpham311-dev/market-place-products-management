@@ -12,6 +12,7 @@ import { SidebarStyleConfig, COLOR_SWATCHES } from './sidebarThemes';
 import { useTranslation } from '@/lib/i18n/useTranslation';
 import { DashboardTranslationKey } from '@/lib/i18n/dashboard-translations';
 import { Icons } from '@/components/ui/Icons';
+import { isSuperAdmin, isShopOwner } from '@/lib/auth/permissions';
 
 interface BranchOption {
   id: StoreBranchId;
@@ -196,10 +197,41 @@ export const SidebarFooterWidgets: React.FC<SidebarFooterWidgetsProps> = ({
   onLogout,
 }) => {
   const { t } = useTranslation();
+  const user = useAppSelector((s) => s.auth.user);
+  const isSuper = isSuperAdmin(user);
+  const isOwner = isShopOwner(user);
   const activeSwatch = COLOR_SWATCHES.find((s) => s.id === sidebarTheme);
 
   return (
     <>
+      {/* Current Logged-in User & Role Card */}
+      {!collapsed && (user?.email || user?.userName) && (
+        <div className={`p-2.5 mx-3 mb-2 rounded-2xl border ${styles.footerCard} flex items-center gap-2.5`}>
+          <div
+            className={`w-8 h-8 rounded-full bg-gradient-to-tr ${
+              isSuper ? 'from-purple-600 to-violet-800' : 'from-indigo-600 to-blue-600'
+            } text-white font-bold text-xs flex items-center justify-center shrink-0 ring-2 ring-indigo-500/20`}
+          >
+            {user.avatar || (user.email ? user.email.slice(0, 2).toUpperCase() : 'SO')}
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className={`text-xs font-bold truncate ${styles.footerTitle}`}>
+              {user.userName || user.email.split('@')[0]}
+            </p>
+            <div className="flex items-center gap-1 mt-0.5">
+              <span
+                className={`text-[9px] font-mono font-bold px-1.5 py-0.2 rounded border ${
+                  isSuper
+                    ? 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/70 dark:text-purple-300 dark:border-purple-800'
+                    : 'bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/70 dark:text-indigo-300 dark:border-indigo-800'
+                }`}
+              >
+                {user.role || (Array.isArray(user.authority) && user.authority[0]) || (isSuper ? 'SUPER_ADMIN' : 'SHOP_OWNER')}
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
       {/* Quick Sidebar Color Swatches */}
       {!collapsed && (
         <div className={`px-4 py-2.5 mx-3 mb-2 rounded-2xl border ${styles.footerCard}`}>

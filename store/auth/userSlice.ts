@@ -9,15 +9,6 @@ export interface UserState {
   authority: string[];
 }
 
-export const initialState: UserState = {
-  id: "66f1a2b3c4d5e6f7a8b9c0d1",
-  avatar: "SA",
-  userName: "Super Admin",
-  email: "admin@novashop.vn",
-  role: "SUPER_ADMIN",
-  authority: ["SUPER_ADMIN", "admin", "owner"],
-};
-
 export const emptyUserState: UserState = {
   avatar: "",
   userName: "",
@@ -25,6 +16,8 @@ export const emptyUserState: UserState = {
   role: "",
   authority: [],
 };
+
+export const initialState: UserState = emptyUserState;
 
 export const userSlice = createSlice({
   name: "auth/user",

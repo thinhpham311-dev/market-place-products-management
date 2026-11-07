@@ -11,6 +11,18 @@ import {
 export const NEXT_SIGNIN_API_ENDPOINT = "/api/shop/signin";
 export const NEXT_SIGNOUT_API_ENDPOINT = "/api/shop/signout";
 export const NEXT_REFRESH_TOKEN_API_ENDPOINT = "/v1/api/shop/refreshtoken";
+export const NEXT_SHOP_PROFILE_API_ENDPOINT = "/v1/api/shop/profile";
+
+export async function apiGetShopProfile() {
+  return ApiService.fetchData({
+    url: "/shop/profile",
+    method: "get",
+    headers: {
+      [REQUEST_HEADER_API_KEY]:
+        process.env.NEXT_PUBLIC_API_KEY || NEXT_PUBLIC_API_KEY,
+    },
+  });
+}
 
 export async function apiSignIn(data: IUser) {
   return ApiService.fetchData({

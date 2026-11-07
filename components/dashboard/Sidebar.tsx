@@ -8,15 +8,23 @@ import { useTranslation } from '@/lib/i18n/useTranslation';
 import { Icons } from '@/components/ui/Icons';
 import { SIDEBAR_THEMES } from './sidebar/sidebarThemes';
 import { SidebarBranchCard, SidebarFooterWidgets } from './sidebar/SidebarWidgets';
-import { canManageCategoryAndBrand, isCategoryManager } from '@/lib/auth/permissions';
+import { canManageCategoryAndBrand, isCategoryManager, isSuperAdmin } from '@/lib/auth/permissions';
 
-export type TabType = 'overview' | 'products' | 'inventory' | 'categories' | 'analytics' | 'settings';
+export type TabType =
+  | 'overview'
+  | 'products'
+  | 'inventory'
+  | 'categories'
+  | 'shops'
+  | 'analytics'
+  | 'settings';
 
 export const TAB_ROUTES: Record<TabType, string> = {
   overview: '/?tab=overview',
   products: '/products?tab=all',
   inventory: '/inventory?tab=stock',
   categories: '/categories?tab=all',
+  shops: '/shops?tab=all',
   analytics: '/analytics?tab=overview',
   settings: '/settings?tab=general',
 };
@@ -49,6 +57,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const dispatch = useAppDispatch();
   const { t } = useTranslation();
   const user = useAppSelector((s) => s.auth.user);
+  const isSuper = isSuperAdmin(user);
   const canManageCategoryBrand = canManageCategoryAndBrand(user);
   const isCatManager = isCategoryManager(user);
 
@@ -76,11 +85,22 @@ export const Sidebar: React.FC<SidebarProps> = ({
       badgeVariant: 'danger',
     },
     { id: 'categories', href: TAB_ROUTES.categories, label: t('nav.categories'), icon: Icons.Layers, badge: productCounts.categories },
+    {
+      id: 'shops',
+      href: TAB_ROUTES.shops,
+      label: t('nav.shops') || 'Quản lý Shop',
+      icon: Icons.Store,
+      badge: 'Root',
+      badgeVariant: 'purple',
+    },
     { id: 'analytics', href: TAB_ROUTES.analytics, label: t('nav.analytics'), icon: Icons.BarChart3, badge: t('nav.badge_new'), badgeVariant: 'primary' },
     { id: 'settings', href: TAB_ROUTES.settings, label: t('nav.settings'), icon: Icons.Settings, badge: null },
   ];
 
   const navItems = rawNavItems.filter((item) => {
+    if (item.id === 'shops' && !isSuper) {
+      return false;
+    }
     if (item.id === 'categories' && !canManageCategoryBrand) {
       return false;
     }
@@ -183,6 +203,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
                     item.badgeVariant === 'danger'
                       ? 'bg-rose-500/20 text-rose-500 dark:text-rose-300 border border-rose-500/30'
+                      : item.badgeVariant === 'purple'
+                      ? 'bg-purple-500/20 text-purple-600 dark:text-purple-300 border border-purple-400/30'
                       : item.badgeVariant === 'primary'
                       ? 'bg-indigo-500/20 text-indigo-600 dark:text-indigo-300 border border-indigo-400/30'
                       : styles.badgeDefault

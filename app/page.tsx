@@ -10,7 +10,7 @@ import { MetricsOverview } from '@/components/dashboard/MetricsOverview';
 import { useTranslation } from '@/lib/i18n/useTranslation';
 import { Icons } from '@/components/ui/Icons';
 import { Button } from '@/components/ui/Button';
-import { isCategoryManager } from '@/lib/auth/permissions';
+import { isCategoryManager, isSuperAdmin, isShopOwner } from '@/lib/auth/permissions';
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -19,6 +19,8 @@ export default function DashboardPage() {
 
   const user = useAppSelector((s) => s.auth.user);
   const isCatManager = isCategoryManager(user);
+  const isSuper = isSuperAdmin(user);
+  const isOwner = isShopOwner(user);
   const products = useAppSelector((s) => s.products.items);
   const categories = useAppSelector((s) => s.categories.items);
   const metrics = useAppSelector(selectDashboardMetrics);
@@ -30,6 +32,10 @@ export default function DashboardPage() {
 
     if (tab && tab !== 'overview' && TAB_ROUTES[tab]) {
       if (isCatManager && (tab === 'products' || tab === 'inventory')) {
+        router.replace('/?tab=overview');
+        return;
+      }
+      if (tab === 'shops' && !isSuper) {
         router.replace('/?tab=overview');
         return;
       }
@@ -70,15 +76,49 @@ export default function DashboardPage() {
       {/* Welcome Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
-            {t('overview.title')}
-          </h1>
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
+              {t('overview.title')}
+            </h1>
+            {isSuper && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-purple-100 text-purple-700 dark:bg-purple-950/70 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
+                <Icons.ShieldCheck size={13} />
+                Platform Root • Global Scope
+              </span>
+            )}
+            {isOwner && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-100 text-indigo-700 dark:bg-indigo-950/70 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+                <Icons.Store size={13} />
+                Shop Owner • Merchant Scope
+              </span>
+            )}
+            {user?.authority && user.authority.length > 0 && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-mono font-bold bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200 border border-slate-300 dark:border-slate-700">
+                Roles từ API: [{user.authority.join(', ')}]
+              </span>
+            )}
+          </div>
           <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
-            {t('overview.subtitle')}
+            {isSuper
+              ? 'Báo cáo tổng hợp số liệu toàn sàn, liên thông toàn bộ các Merchant và kho hàng.'
+              : isOwner
+              ? 'Báo cáo chỉ số hoạt động chuỗi cửa hàng và kho hàng trực thuộc doanh nghiệp của bạn.'
+              : t('overview.subtitle')}
           </p>
         </div>
 
         <div className="flex items-center gap-2">
+          {isSuper && (
+            <Button
+              variant="outline"
+              size="sm"
+              leftIcon={<Icons.Store size={15} />}
+              onClick={() => router.push('/shops')}
+              className="border-purple-300 dark:border-purple-800 text-purple-700 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-950/50"
+            >
+              Quản lý Gian Hàng
+            </Button>
+          )}
           <Button
             variant="outline"
             size="sm"

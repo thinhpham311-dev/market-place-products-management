@@ -4,6 +4,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { setActiveShop, setActiveWarehouse } from '@/store/slices/scopeSlice';
 import { Icons } from '@/components/ui/Icons';
+import { isSuperAdmin, isShopOwner } from '@/lib/auth/permissions';
 
 export const HeaderScopeSelector: React.FC = () => {
   const dispatch = useAppDispatch();
@@ -11,6 +12,8 @@ export const HeaderScopeSelector: React.FC = () => {
     (s) => s.scope
   );
   const user = useAppSelector((s) => s.auth.user);
+  const isSuper = isSuperAdmin(user);
+  const isOwner = isShopOwner(user);
 
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -66,6 +69,18 @@ export const HeaderScopeSelector: React.FC = () => {
         onClick={() => setIsOpen(!isOpen)}
         className="flex items-center gap-2 px-3 py-1.5 rounded-xl border border-slate-200/90 dark:border-slate-750 bg-slate-50/80 hover:bg-slate-100 dark:bg-slate-800/80 dark:hover:bg-slate-800 text-xs text-slate-700 dark:text-slate-200 transition-all shadow-xs cursor-pointer group"
       >
+        {user?.role && (
+          <span
+            className={`hidden xl:inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-mono font-bold border ${
+              isSuper
+                ? 'bg-purple-100 text-purple-700 dark:bg-purple-950/70 dark:text-purple-300 border-purple-200 dark:border-purple-800'
+                : 'bg-indigo-100 text-indigo-700 dark:bg-indigo-950/70 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800'
+            }`}
+          >
+            {user.role}
+          </span>
+        )}
+
         {/* Shop pill */}
         <div className="flex items-center gap-1.5 max-w-[130px] sm:max-w-[160px]">
           <span className="p-1 rounded-md bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 shrink-0">
@@ -105,6 +120,7 @@ export const HeaderScopeSelector: React.FC = () => {
               <span className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">
                 Phạm vi dữ liệu
               </span>
+            
               {isWarehouseStaff && (
                 <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800/60">
                   Nhân viên kho

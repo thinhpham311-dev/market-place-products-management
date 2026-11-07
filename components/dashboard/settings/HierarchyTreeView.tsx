@@ -4,12 +4,16 @@ import React from 'react';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { setActiveShop, setActiveWarehouse } from '@/store/slices/scopeSlice';
 import { Icons } from '@/components/ui/Icons';
+import { isSuperAdmin, isShopOwner } from '@/lib/auth/permissions';
 
 export const HierarchyTreeView: React.FC = () => {
   const dispatch = useAppDispatch();
   const { shops, warehouses, activeShopId, activeWarehouseId } = useAppSelector(
     (s) => s.scope
   );
+  const user = useAppSelector((s) => s.auth.user);
+  const isSuper = isSuperAdmin(user);
+  const isOwner = isShopOwner(user);
 
   return (
     <div className="space-y-6">
@@ -29,9 +33,18 @@ export const HierarchyTreeView: React.FC = () => {
         <div className="min-w-[680px] space-y-6 font-sans">
           {/* Level 1: SUPER ADMIN */}
           <div className="flex items-center gap-3">
-            <div className="px-4 py-2.5 rounded-xl bg-purple-600 text-white font-bold text-xs flex items-center gap-2.5 shadow-md">
+            <div
+              className={`px-4 py-2.5 rounded-xl bg-purple-600 text-white font-bold text-xs flex items-center gap-2.5 shadow-md ${
+                isSuper ? 'ring-4 ring-purple-450/40 ring-offset-2 dark:ring-offset-slate-900 shadow-purple-500/30' : ''
+              }`}
+            >
               <Icons.ShieldCheck size={16} />
               <span>SUPER ADMIN (Platform Root)</span>
+              {isSuper && (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-300 text-purple-950 uppercase tracking-wide">
+                  Tài khoản của bạn
+                </span>
+              )}
             </div>
             <span className="text-xs text-slate-400 font-mono">
               Toàn quyền hệ thống • Scope: GLOBAL
@@ -43,9 +56,18 @@ export const HierarchyTreeView: React.FC = () => {
             <div className="relative pt-2">
               <div className="absolute -left-6 top-6 w-6 h-0.5 bg-indigo-200 dark:border-indigo-900/60" />
               <div className="flex items-center gap-3">
-                <div className="px-4 py-2.5 rounded-xl bg-indigo-600 text-white font-bold text-xs flex items-center gap-2.5 shadow-md">
+                <div
+                  className={`px-4 py-2.5 rounded-xl bg-indigo-600 text-white font-bold text-xs flex items-center gap-2.5 shadow-md ${
+                    isOwner ? 'ring-4 ring-indigo-400/40 ring-offset-2 dark:ring-offset-slate-900 shadow-indigo-500/30' : ''
+                  }`}
+                >
                   <Icons.User size={16} />
                   <span>SHOP OWNER (Chủ Chuỗi Cửa Hàng)</span>
+                  {isOwner && (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-300 text-indigo-950 uppercase tracking-wide">
+                      Tài khoản của bạn
+                    </span>
+                  )}
                 </div>
                 <span className="text-xs text-slate-400 font-mono">
                   Quản trị toàn bộ Merchant • Scope: MERCHANT

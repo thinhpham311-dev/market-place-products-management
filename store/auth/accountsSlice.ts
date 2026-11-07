@@ -20,12 +20,38 @@ export const DEFAULT_ACCOUNTS: RegisteredAccount[] = [
     user: {
       id: "66f1a2b3c4d5e6f7a8b9c0d1",
       avatar: "SA",
-      userName: "Admin Shop",
+      userName: "Admin Shop (Root)",
       email: "admin@novashop.vn",
       role: "SUPER_ADMIN",
-      authority: ["SUPER_ADMIN", "admin", "owner"],
+      authority: ["SUPER_ADMIN", "admin"],
     },
-    badgeColor: "from-indigo-500 to-violet-600",
+    badgeColor: "from-purple-600 to-violet-700",
+  },
+  {
+    email: "owneradmin@novashop.vn",
+    password: "novashop",
+    user: {
+      id: "66f1a2b3c4d5e6f7a8b9c0d8",
+      avatar: "OA",
+      userName: "Owner Admin",
+      email: "owneradmin@novashop.vn",
+      role: "SHOP_OWNER",
+      authority: ["SHOP_OWNER"],
+    },
+    badgeColor: "from-blue-600 to-indigo-600",
+  },
+  {
+    email: "owner@novashop.vn",
+    password: "novashop",
+    user: {
+      id: "66f1a2b3c4d5e6f7a8b9c0d9",
+      avatar: "SO",
+      userName: "Trần Minh (Shop Owner)",
+      email: "owner@novashop.vn",
+      role: "SHOP_OWNER",
+      authority: ["SHOP_OWNER", "owner"],
+    },
+    badgeColor: "from-indigo-600 to-blue-600",
   },
   {
     email: "category@novashop.vn",
@@ -100,12 +126,28 @@ export function mergeDefaultAccounts(
     const key = acc.email.toLowerCase();
     const existing = accountMap.get(key);
     if (existing) {
+      const fixedRole =
+        key === "admin@novashop.vn"
+          ? "SUPER_ADMIN"
+          : key === "owneradmin@novashop.vn"
+          ? "SHOP_OWNER"
+          : acc.user?.role || existing.user.role;
+
+      const fixedAuthority =
+        key === "admin@novashop.vn"
+          ? ["SUPER_ADMIN", "admin"]
+          : key === "owneradmin@novashop.vn"
+          ? ["SHOP_OWNER"]
+          : acc.user?.authority || existing.user.authority;
+
       accountMap.set(key, {
         ...existing,
         ...acc,
         user: {
           ...existing.user,
           ...acc.user,
+          role: fixedRole,
+          authority: fixedAuthority,
         },
       });
     } else {
