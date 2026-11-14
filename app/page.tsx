@@ -107,14 +107,14 @@ export default function DashboardPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
           {isSuper && (
             <Button
               variant="outline"
               size="sm"
               leftIcon={<Icons.Store size={15} />}
               onClick={() => router.push('/shops')}
-              className="border-purple-300 dark:border-purple-800 text-purple-700 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-950/50"
+              className="border-purple-300 dark:border-purple-800 text-purple-700 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-950/50 flex-1 sm:flex-none justify-center"
             >
               Quản lý Gian Hàng
             </Button>
@@ -124,6 +124,7 @@ export default function DashboardPage() {
             size="sm"
             leftIcon={<Icons.Download size={15} />}
             onClick={() => alert('Đã xuất báo cáo tổng quan PDF thành công!')}
+            className="flex-1 sm:flex-none justify-center"
           >
             {t('products.export_csv')}
           </Button>
@@ -133,6 +134,7 @@ export default function DashboardPage() {
               size="sm"
               leftIcon={<Icons.Plus size={15} />}
               onClick={handleOpenCreate}
+              className="flex-1 sm:flex-none justify-center"
             >
               {t('header.add_product')}
             </Button>

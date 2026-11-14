@@ -38,8 +38,136 @@ export const InventoryStockTable: React.FC<InventoryStockTableProps> = ({
   const activeWh = warehouses.find((w) => w.id === activeWarehouseId);
 
   return (
-    <div className="overflow-x-auto custom-scrollbar">
-      <table className="w-full text-left text-sm text-slate-600 dark:text-slate-300">
+    <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">
+      {/* Mobile Responsive Inventory Cards (< md) */}
+      <div className="md:hidden divide-y divide-slate-100 dark:divide-slate-800">
+        {products.map((p) => {
+          const scopedStock = getProductStockForScope(p, activeWarehouseId);
+          const isOut = scopedStock === 0;
+          const isLow =
+            scopedStock <=
+              Math.max(
+                1,
+                Math.round(p.lowStockThreshold * (activeWarehouseId === 'all' ? 1 : 0.4))
+              ) && !isOut;
+          const translatedName = tp(p.name);
+          const location =
+            activeWarehouseId === 'all'
+              ? p.warehouseLocation || 'KHO-CHÍNH'
+              : `Kệ ${activeWh?.code}-A${p.sku.slice(-2) || '01'}`;
+
+          return (
+            <div key={p.id} className="p-3.5 sm:p-4 hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors space-y-3">
+              {/* Product Info */}
+              <div className="flex items-start gap-3">
+                <img
+                  src={p.thumbnail}
+                  alt={translatedName}
+                  className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl object-cover border border-slate-200 dark:border-slate-700 shrink-0"
+                />
+                <div className="min-w-0 flex-1">
+                  <span className="text-xs sm:text-sm font-semibold text-slate-900 dark:text-white line-clamp-2 block">
+                    {translatedName}
+                  </span>
+                  <div className="flex items-center gap-1.5 mt-1 text-[11px] text-slate-400 flex-wrap">
+                    <span className="font-mono text-indigo-600 dark:text-indigo-400 font-semibold">
+                      {p.sku}
+                    </span>
+                    {p.category && (
+                      <>
+                        <span>•</span>
+                        <span>{tc(p.category)}</span>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Location & Stock Details */}
+              <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100 dark:border-slate-800/60 text-xs">
+                <div className="flex items-center gap-1.5 text-[11px] text-slate-500">
+                  <span className="text-slate-400">Vị trí:</span>
+                  <span className="font-mono font-medium text-slate-700 dark:text-slate-300">
+                    {location}
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] text-slate-400">Tồn:</span>
+                  <span
+                    className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                      isOut
+                        ? 'bg-rose-100 text-rose-700 dark:bg-rose-950/50 dark:text-rose-400'
+                        : isLow
+                        ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-400'
+                        : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400'
+                    }`}
+                  >
+                    {scopedStock} {t('table.stock_unit')}
+                  </span>
+                </div>
+              </div>
+
+              {/* Warehouse breakdown if All */}
+              {activeWarehouseId === 'all' && warehouses.length > 0 && (
+                <div className="flex flex-wrap gap-1 text-[10px] font-mono text-slate-400">
+                  {warehouses.map((w) => {
+                    const whStock = getProductStockForScope(p, w.id);
+                    return (
+                      <span
+                        key={w.id}
+                        className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300"
+                        title={w.name}
+                      >
+                        {w.code}: {whStock}
+                      </span>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Quick Actions */}
+              <div className="pt-2 flex items-center justify-between gap-1.5 border-t border-slate-100 dark:border-slate-800/60">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="text-xs h-7.5 px-2.5 text-indigo-600 dark:text-indigo-400 border-indigo-200 dark:border-indigo-800 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 cursor-pointer"
+                  onClick={() => onOpenTransfer(p)}
+                  title="Chuyển kho sản phẩm này"
+                  leftIcon={<Icons.Boxes size={12} />}
+                >
+                  Chuyển kho
+                </Button>
+
+                <div className="flex items-center gap-1.5">
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    className="text-xs h-7.5 px-2.5 cursor-pointer"
+                    onClick={() => onOpenAdjust(p, 'in')}
+                    leftIcon={<Icons.Plus size={12} />}
+                  >
+                    {t('inventory.btn_stock_in')}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="text-xs h-7.5 px-2 text-slate-500 cursor-pointer"
+                    onClick={() => onOpenAdjust(p, 'out')}
+                    leftIcon={<Icons.Minus size={12} />}
+                  >
+                    {t('inventory.btn_stock_out')}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Desktop Full Table View (>= md) */}
+      <div className="hidden md:block overflow-x-auto custom-scrollbar">
+        <table className="w-full min-w-[750px] text-left text-sm text-slate-600 dark:text-slate-300">
         <thead className="sticky top-0 z-10 bg-slate-50/95 dark:bg-slate-800/95 backdrop-blur-sm text-[11px] uppercase tracking-wider text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800">
           <tr>
             <th className="py-3 px-4 font-semibold">{t('inventory.col_product')}</th>
@@ -170,6 +298,7 @@ export const InventoryStockTable: React.FC<InventoryStockTableProps> = ({
           })}
         </tbody>
       </table>
+      </div>
     </div>
   );
 };

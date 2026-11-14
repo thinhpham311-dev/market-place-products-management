@@ -44,6 +44,19 @@ export function toUserFriendlyErrorMessage(
     return "Hệ thống phản hồi quá lâu. Vui lòng bấm thử lại.";
   }
 
+  // Login / credentials errors
+  if (
+    lower.includes("password") ||
+    lower.includes("mật khẩu") ||
+    lower.includes("credential") ||
+    lower.includes("invalid email") ||
+    lower.includes("incorrect email") ||
+    lower.includes("sai tài khoản") ||
+    lower.includes("sai mật khẩu")
+  ) {
+    return "Email hoặc mật khẩu không chính xác. Vui lòng kiểm tra lại.";
+  }
+
   // Auth / token / session errors
   if (
     lower.includes("jwt") ||

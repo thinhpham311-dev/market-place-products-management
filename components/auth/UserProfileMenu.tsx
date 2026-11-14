@@ -71,17 +71,18 @@ export const UserProfileMenu: React.FC<UserProfileMenuProps> = ({ user, onLogout
     : 'from-indigo-500 to-pink-500';
 
   return (
-    <div className="relative pl-2 border-l border-slate-200 dark:border-slate-800" ref={menuRef}>
+    <div className="relative pl-1.5 sm:pl-2 border-l border-slate-200 dark:border-slate-800 shrink-0" ref={menuRef}>
       <button
         type="button"
         onClick={() => setOpen((prev) => !prev)}
-        className="flex items-center gap-2.5 p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+        className="flex items-center gap-1.5 sm:gap-2.5 p-1 sm:p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
         title={`${displayName} (${apiRoleText})`}
+        aria-label="Tài khoản cá nhân"
       >
         <div className={`w-8 h-8 rounded-full bg-gradient-to-tr ${avatarGradient} text-white font-semibold text-xs flex items-center justify-center ring-2 ring-indigo-500/20 shrink-0`}>
           {displayAvatar}
         </div>
-        <div className="hidden sm:block text-left">
+        <div className="hidden lg:block text-left">
           <p className="text-xs font-semibold text-slate-800 dark:text-slate-200 leading-tight">
             {displayName}
           </p>
@@ -107,7 +108,7 @@ export const UserProfileMenu: React.FC<UserProfileMenuProps> = ({ user, onLogout
       </button>
 
       {open && (
-        <div className="absolute right-0 mt-2 w-72 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 p-2 z-50 animate-in fade-in zoom-in-95">
+        <div className="fixed inset-x-3 top-16 max-w-sm ml-auto sm:absolute sm:top-full sm:inset-x-auto sm:right-0 sm:mt-2 w-72 sm:w-80 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 p-2 z-50 animate-in fade-in zoom-in-95">
           {/* User Info Header */}
           <div className="px-3 py-2.5 border-b border-slate-100 dark:border-slate-800">
             <div className="flex items-center gap-2.5">
@@ -166,7 +167,7 @@ export const UserProfileMenu: React.FC<UserProfileMenuProps> = ({ user, onLogout
               type="button"
               onClick={() => {
                 setOpen(false);
-                router.push('/login');
+                router.push('/switch-account');
               }}
               className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
             >

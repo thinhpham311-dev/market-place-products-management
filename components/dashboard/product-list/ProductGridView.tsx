@@ -75,7 +75,7 @@ export const ProductGridView: React.FC<ProductGridViewProps> = ({
   };
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
       {products.map((p, index) => {
         const isSelected = selectedIds.includes(p.id);
         const isLowStock = p.stock <= p.lowStockThreshold && p.stock > 0;
@@ -92,7 +92,7 @@ export const ProductGridView: React.FC<ProductGridViewProps> = ({
             onDragOver={(e) => handleDragOver(e, p.id)}
             onDragLeave={() => handleDragLeave(p.id)}
             onDrop={(e) => handleDrop(e, p.id)}
-            className={`bg-white dark:bg-slate-900 rounded-2xl border transition-all duration-200 overflow-hidden flex flex-col group shadow-sm hover:shadow-md ${
+            className={`bg-white dark:bg-slate-900 rounded-2xl border transition-all duration-200 overflow-hidden flex flex-col justify-between group shadow-sm hover:shadow-md ${
               isDraggingThis
                 ? 'opacity-30 border-dashed border-indigo-400 bg-indigo-50/20'
                 : isOverThis
@@ -103,44 +103,42 @@ export const ProductGridView: React.FC<ProductGridViewProps> = ({
             }`}
           >
             {/* Image & Badges */}
-            <div className="relative aspect-square bg-slate-100 dark:bg-slate-800 overflow-hidden">
+            <div className="relative aspect-[4/3] sm:aspect-square bg-slate-100 dark:bg-slate-800 overflow-hidden">
               <img
                 src={p.thumbnail}
                 alt={translatedName}
                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
               />
-              {/* Checkbox */}
-              <div className="absolute top-3 left-3">
+              {/* Checkbox & Drag Priority Badge */}
+              <div className="absolute top-2.5 left-2.5 z-10 flex items-center gap-1.5">
                 <input
                   type="checkbox"
                   checked={isSelected}
                   onChange={() => onToggleSelect(p.id)}
-                  className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 w-4 h-4 cursor-pointer shadow"
+                  className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 w-4 h-4 cursor-pointer shadow bg-white"
                 />
-              </div>
-
-              {/* Drag Grip & Priority Badge */}
-              <div
-                draggable
-                onDragStart={(e) => handleDragStart(e, p.id)}
-                onDragEnd={handleDragEnd}
-                className="absolute top-3 left-10 z-10 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-lg bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm border border-slate-200/80 dark:border-slate-700/80 text-slate-500 hover:text-indigo-600 dark:hover:text-indigo-400 shadow-xs cursor-grab active:cursor-grabbing select-none"
-                title="Kéo thả để sắp xếp thứ tự ưu tiên"
-              >
-                <Icons.GripVertical size={13} className="shrink-0" />
-                <span className="text-[10px] font-mono font-bold text-slate-700 dark:text-slate-200">
-                  #{p.priority ?? index + 1}
-                </span>
+                <div
+                  draggable
+                  onDragStart={(e) => handleDragStart(e, p.id)}
+                  onDragEnd={handleDragEnd}
+                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-lg bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm border border-slate-200/80 dark:border-slate-700/80 text-slate-500 hover:text-indigo-600 dark:hover:text-indigo-400 shadow-xs cursor-grab active:cursor-grabbing select-none"
+                  title="Kéo thả để sắp xếp thứ tự ưu tiên"
+                >
+                  <Icons.GripVertical size={12} className="shrink-0" />
+                  <span className="text-[10px] font-mono font-bold text-slate-700 dark:text-slate-200">
+                    #{p.priority ?? index + 1}
+                  </span>
+                </div>
               </div>
 
               {/* Status Badge */}
-              <div className="absolute top-3 right-3">
+              <div className="absolute top-2.5 right-2.5 z-10">
                 <StatusBadge status={p.status} />
               </div>
 
               {/* Discount pill */}
               {p.originalPrice && p.originalPrice > p.price && (
-                <div className="absolute bottom-3 left-3 bg-rose-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow">
+                <div className="absolute bottom-2.5 left-2.5 bg-rose-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow">
                   -{Math.round(((p.originalPrice - p.price) / p.originalPrice) * 100)}%
                 </div>
               )}
@@ -153,7 +151,7 @@ export const ProductGridView: React.FC<ProductGridViewProps> = ({
                     variant="primary"
                     isLoading={Boolean(publishingIds[p.id])}
                     disabled={Boolean(publishingIds[p.id])}
-                    className="bg-emerald-600 hover:bg-emerald-700 text-xs w-full shadow-lg"
+                    className="bg-emerald-600 hover:bg-emerald-700 text-xs w-full shadow-lg cursor-pointer"
                     onClick={() => onOpenPublishModal(p)}
                     leftIcon={<Icons.Rocket size={14} />}
                   >
@@ -164,28 +162,29 @@ export const ProductGridView: React.FC<ProductGridViewProps> = ({
             </div>
 
             {/* Card Content */}
-            <div className="p-4 flex-1 flex flex-col justify-between">
+            <div className="p-3.5 sm:p-4 flex-1 flex flex-col justify-between">
               <div>
                 <div className="flex items-center justify-between text-[11px] text-slate-400 mb-1">
-                  <span className="font-mono text-indigo-600 dark:text-indigo-400 font-semibold">
+                  <span className="font-mono text-indigo-600 dark:text-indigo-400 font-semibold truncate max-w-[120px]">
                     {p.sku}
                   </span>
-                  <span>{tc(p.category)}</span>
+                  <span className="truncate max-w-[100px]">{tc(p.category)}</span>
                 </div>
 
                 <h4
                   onClick={() => onSelectProduct(p)}
-                  className="text-xs font-bold text-slate-900 dark:text-white line-clamp-2 hover:text-indigo-600 cursor-pointer"
+                  className="text-xs font-bold text-slate-900 dark:text-white line-clamp-2 hover:text-indigo-600 dark:hover:text-indigo-400 cursor-pointer"
+                  title={translatedName}
                 >
                   {translatedName}
                 </h4>
 
                 {/* Pricing */}
-                <div className="mt-2.5 flex items-baseline gap-2">
+                <div className="mt-2 flex items-baseline gap-2 flex-wrap">
                   <span className="text-sm font-bold text-slate-900 dark:text-white">
                     {formatCurrency(p.price)}
                   </span>
-                  {p.originalPrice && (
+                  {p.originalPrice && p.originalPrice > p.price && (
                     <span className="text-xs text-slate-400 line-through">
                       {formatCurrency(p.originalPrice)}
                     </span>
@@ -193,16 +192,16 @@ export const ProductGridView: React.FC<ProductGridViewProps> = ({
                 </div>
 
                 {/* Stock level progress */}
-                <div className="mt-3 space-y-1">
+                <div className="mt-2.5 space-y-1">
                   <div className="flex items-center justify-between text-[11px]">
                     <span className="text-slate-500 dark:text-slate-400">{t('table.col_stock')}</span>
                     <span
                       className={`font-semibold ${
                         isOutOfStock
-                          ? 'text-rose-600'
+                          ? 'text-rose-600 dark:text-rose-400'
                           : isLowStock
-                          ? 'text-amber-600'
-                          : 'text-emerald-600'
+                          ? 'text-amber-600 dark:text-amber-400'
+                          : 'text-emerald-600 dark:text-emerald-400'
                       }`}
                     >
                       {p.stock} {t('table.stock_unit')}
@@ -224,50 +223,55 @@ export const ProductGridView: React.FC<ProductGridViewProps> = ({
               </div>
 
               {/* Actions footer */}
-              <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
-                <span className="text-[11px] text-slate-500">
-                  {t('table.col_sold')}: <strong>{formatNumber(p.soldCount)}</strong>
+              <div className="mt-3.5 pt-2.5 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-1.5">
+                <span className="text-[11px] text-slate-500 shrink-0">
+                  {t('table.col_sold')}: <strong className="text-slate-800 dark:text-slate-200">{formatNumber(p.soldCount)}</strong>
                 </span>
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1 shrink-0">
                   {!isDraft && onUnpublishProduct && (
                     <button
+                      type="button"
                       onClick={() => onUnpublishProduct(p)}
                       disabled={Boolean(unpublishingIds[p.id] || publishingIds[p.id])}
-                      className="p-1.5 text-amber-600 hover:text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/40 rounded-lg transition-colors disabled:opacity-50"
+                      className="p-1.5 text-amber-600 hover:text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/40 rounded-lg transition-colors cursor-pointer disabled:opacity-50"
                       title={t('table.unpublish_tooltip')}
                     >
-                      <Icons.EyeOff size={15} />
+                      <Icons.EyeOff size={14} />
                     </button>
                   )}
                   <button
+                    type="button"
                     onClick={() => onOpenPublishModal(p)}
                     disabled={Boolean(publishingIds[p.id] || unpublishingIds[p.id])}
-                    className="p-1.5 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 rounded-lg transition-colors disabled:opacity-50"
+                    className="p-1.5 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 rounded-lg transition-colors cursor-pointer disabled:opacity-50"
                     title={t('table.publish_tooltip')}
                   >
-                    <Icons.Rocket size={15} />
+                    <Icons.Rocket size={14} />
                   </button>
                   <button
+                    type="button"
                     onClick={() => onSelectProduct(p)}
-                    className="p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"
+                    className="p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
                     title={t('table.view_detail')}
                   >
-                    <Icons.Eye size={15} />
+                    <Icons.Eye size={14} />
                   </button>
                   <button
+                    type="button"
                     onClick={() => onEditProduct(p)}
-                    className="p-1.5 text-slate-400 hover:text-indigo-600 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-950/40"
+                    className="p-1.5 text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-950/40 cursor-pointer"
                     title={t('table.edit_product')}
                   >
-                    <Icons.Edit2 size={15} />
+                    <Icons.Edit2 size={14} />
                   </button>
                   {!isPublished && (
                     <button
+                      type="button"
                       onClick={() => onDeleteProduct(p.id)}
-                      className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/40"
+                      className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/40 cursor-pointer"
                       title={t('table.delete_product')}
                     >
-                      <Icons.Trash2 size={15} />
+                      <Icons.Trash2 size={14} />
                     </button>
                   )}
                 </div>

@@ -1,11 +1,12 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import axios from 'axios';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { useHydrated } from '@/store/StoreProvider';
-import { onSignInSuccess } from '@/store/auth/sessionSlice';
+import { onSignInSuccess, setRefreshToken } from '@/store/auth/sessionSlice';
 import { setUser, UserState } from '@/store/auth/userSlice';
 import {
   DEFAULT_ACCOUNTS,
@@ -13,9 +14,11 @@ import {
   RegisteredAccount,
 } from '@/store/auth/accountsSlice';
 import { showToast } from '@/store/slices/uiSlice';
+import { apiSignUp } from '@/services/AuthService';
 import { Icons } from '@/components/ui/Icons';
 import { Button } from '@/components/ui/Button';
 import { AuthSplitLayout } from '@/components/auth/AuthSplitLayout';
+import { FieldTooltip } from '@/components/ui/FieldTooltip';
 import { useTranslation } from '@/lib/i18n/useTranslation';
 
 type RoleOptionKey =
@@ -97,6 +100,8 @@ export const SignUpView: React.FC = () => {
 
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
+  const [address, setAddress] = useState('');
   const [roleKey, setRoleKey] = useState<RoleOptionKey>('owner');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -107,10 +112,10 @@ export const SignUpView: React.FC = () => {
 
   const getPasswordStrength = (pw: string) => {
     if (!pw) return { level: 0, label: '', color: 'bg-slate-200 dark:bg-slate-700' };
-    if (pw.length < 6) {
+    if (pw.length < 8) {
       return { level: 1, label: t('signup.pw_weak'), color: 'bg-rose-500' };
     }
-    if (pw.length < 8 || !/[0-9]/.test(pw)) {
+    if (pw.length < 10 || !/[0-9]/.test(pw)) {
       return { level: 2, label: t('signup.pw_medium'), color: 'bg-amber-500' };
     }
     return { level: 3, label: t('signup.pw_strong'), color: 'bg-emerald-500' };
@@ -118,14 +123,35 @@ export const SignUpView: React.FC = () => {
 
   const pwStrength = getPasswordStrength(password);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const isEmailDirty = email.length > 0;
+  const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+  const isEmailError = isEmailDirty && !isEmailValid;
+
+  const cleanPhone = phone.trim().replace(/[\s.-]/g, '');
+  const isPhoneDirty = phone.length > 0;
+  const isPhoneValid = /^(0|\+84)?[0-9]{8,11}$/.test(cleanPhone);
+  const isPhoneError = isPhoneDirty && !isPhoneValid;
+
+  const isAddressDirty = address.trim().length > 0;
+
+  const isPasswordDirty = password.length > 0;
+  const isPasswordTooShort = isPasswordDirty && password.length < 8;
+
+  const isConfirmPasswordDirty = confirmPassword.length > 0;
+  const isConfirmMismatch = isConfirmPasswordDirty && confirmPassword !== password;
+  const isConfirmMatch = isConfirmPasswordDirty && confirmPassword === password;
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
     const trimmedName = fullName.trim();
     const trimmedEmail = email.trim().toLowerCase();
+    const trimmedPhone = phone.trim();
+    const trimmedAddress = address.trim();
+    const sanitizedPhone = trimmedPhone.replace(/[\s.-]/g, '');
 
-    if (!trimmedName || !trimmedEmail || !password.trim()) {
+    if (!trimmedName || !trimmedEmail || !trimmedPhone || !trimmedAddress || !password.trim()) {
       setError(t('signup.error_empty'));
       return;
     }
@@ -133,6 +159,12 @@ export const SignUpView: React.FC = () => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(trimmedEmail)) {
       setError(t('signup.error_email_invalid'));
+      return;
+    }
+
+    const phoneRegex = /^(0|\+84)?[0-9]{8,11}$/;
+    if (!phoneRegex.test(sanitizedPhone)) {
+      setError(t('signup.error_phone_invalid'));
       return;
     }
 
@@ -144,7 +176,7 @@ export const SignUpView: React.FC = () => {
       return;
     }
 
-    if (password.length < 4) {
+    if (password.length < 8) {
       setError(t('signup.error_pw_short'));
       return;
     }
@@ -173,6 +205,8 @@ export const SignUpView: React.FC = () => {
       avatar: initials || 'NV',
       userName: trimmedName,
       email: trimmedEmail,
+      phone: trimmedPhone,
+      address: trimmedAddress,
       role: selectedRole.roleTitle,
       authority: selectedRole.authority,
     };
@@ -180,6 +214,8 @@ export const SignUpView: React.FC = () => {
     const newAccount: RegisteredAccount = {
       email: trimmedEmail,
       password,
+      phone: trimmedPhone,
+      address: trimmedAddress,
       user: newUser,
       badgeColor: selectedRole.badgeColor,
       createdAt: new Date().toISOString(),
@@ -187,12 +223,83 @@ export const SignUpView: React.FC = () => {
 
     setIsLoading(true);
 
-    setTimeout(() => {
-      const fakeToken = `novashop-jwt-${Date.now()}`;
-      dispatch(registerAccount(newAccount));
-      dispatch(onSignInSuccess(fakeToken));
-      dispatch(setUser(newUser));
-      dispatch(showToast(`${t('signup.success_toast')} ${newUser.userName}!`));
+    try {
+      const res = await apiSignUp({
+        name: trimmedName,
+        userName: trimmedName,
+        fullName: trimmedName,
+        email: trimmedEmail,
+        phone: trimmedPhone,
+        phoneNumber: trimmedPhone,
+        address: trimmedAddress,
+        password,
+        role: selectedRole.roleTitle,
+        roles: selectedRole.authority,
+      });
+
+      const resData = res?.data as Record<string, unknown> | undefined;
+
+      if (
+        resData &&
+        (resData.status === 'error' ||
+          (typeof resData.status === 'number' && resData.status >= 400) ||
+          (typeof resData.code === 'number' && resData.code >= 400) ||
+          (typeof resData.statusCode === 'number' && resData.statusCode >= 400))
+      ) {
+        setError(
+          typeof resData.message === 'string'
+            ? resData.message
+            : 'Đăng ký tài khoản thất bại.'
+        );
+        return;
+      }
+
+      const metadata = (resData?.metadata ||
+        resData?.data ||
+        resData) as Record<string, unknown> | undefined;
+      const tokens = (metadata?.tokens || resData?.tokens) as Record<string, unknown> | undefined;
+      const shop = (metadata?.shop || resData?.shop) as Record<string, unknown> | undefined;
+
+      const accessToken =
+        (typeof tokens?.accessToken === 'string' && tokens.accessToken) ||
+        (typeof metadata?.accessToken === 'string' && metadata.accessToken) ||
+        `novashop-jwt-${Date.now()}`;
+      const refreshToken =
+        typeof tokens?.refreshToken === 'string' ? tokens.refreshToken : undefined;
+      const clientId =
+        (typeof shop?._id === 'string' && shop._id) ||
+        (typeof shop?.id === 'string' && shop.id) ||
+        generatedClientId;
+
+      const returnedRole =
+        typeof shop?.role === 'string' ? shop.role : selectedRole.roleTitle;
+      const returnedAuthority = Array.isArray(shop?.roles)
+        ? (shop.roles as string[])
+        : selectedRole.authority;
+
+      const registeredUser: UserState = {
+        ...newUser,
+        id: clientId,
+        userName: (typeof shop?.name === 'string' && shop.name) || newUser.userName,
+        email: (typeof shop?.email === 'string' && shop.email) || newUser.email,
+        phone: (typeof shop?.phone === 'string' && shop.phone) || newUser.phone,
+        address: (typeof shop?.address === 'string' && shop.address) || newUser.address,
+        role: returnedRole,
+        authority: returnedAuthority,
+      };
+
+      const accountToSave: RegisteredAccount = {
+        ...newAccount,
+        user: registeredUser,
+      };
+
+      dispatch(registerAccount(accountToSave));
+      dispatch(onSignInSuccess(accessToken));
+      if (refreshToken) {
+        dispatch(setRefreshToken(refreshToken));
+      }
+      dispatch(setUser(registeredUser));
+      dispatch(showToast(`${t('signup.success_toast')} ${registeredUser.userName}!`));
 
       const rawRedirectUrl = searchParams.get('redirectUrl') || '/?tab=overview';
       const [basePath, existingQuery] = rawRedirectUrl.split('?');
@@ -200,10 +307,40 @@ export const SignUpView: React.FC = () => {
       if (basePath === '/' && !params.get('tab')) {
         params.set('tab', 'overview');
       }
-      params.set('clientId', generatedClientId);
+      params.set('clientId', clientId);
 
       router.push(`${basePath}?${params.toString()}`);
-    }, 400);
+    } catch (err: unknown) {
+      let message = 'Đăng ký tài khoản thất bại. Vui lòng thử lại.';
+      if (axios.isAxiosError(err) && err.response?.data) {
+        const data = err.response.data as Record<string, unknown>;
+        const validation = data?.validation as Record<string, unknown> | undefined;
+        const bodyValidation = validation?.body as Record<string, unknown> | undefined;
+
+        if (typeof bodyValidation?.message === 'string') {
+          message = bodyValidation.message.replace(/['"]/g, '');
+        } else if (Array.isArray(data?.details) && data.details.length > 0) {
+          const first = data.details[0] as Record<string, unknown>;
+          if (typeof first?.message === 'string') {
+            message = first.message.replace(/['"]/g, '');
+          }
+        } else if (typeof data?.message === 'string' && data.message.trim()) {
+          message =
+            data.message === 'Validation Failed'
+              ? 'Dữ liệu đăng ký không hợp lệ. Vui lòng kiểm tra lại thông tin (mật khẩu tối thiểu 8 ký tự).'
+              : data.message;
+        } else if (typeof data?.error === 'string') {
+          message = data.error;
+        } else if (Array.isArray(data?.errors) && data.errors.length > 0) {
+          message = String(data.errors[0]).replace(/['"]/g, '');
+        }
+      } else if (err instanceof Error) {
+        message = err.message;
+      }
+      setError(message);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -239,9 +376,20 @@ export const SignUpView: React.FC = () => {
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Full Name */}
           <div>
-            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
-              {t('signup.fullname_label')}
-            </label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                <span>{t('signup.fullname_label')}</span>
+                <span className="text-rose-500 font-bold text-sm leading-none" title="Trường bắt buộc">*</span>
+                <FieldTooltip
+                  title="Ràng buộc Họ và tên"
+                  description="Họ và tên đầy đủ của đại diện gian hàng hoặc quản trị viên, dùng hiển thị trên tài khoản, hóa đơn và lịch sử thao tác."
+                  warning="Bắt buộc nhập, tối thiểu 2 ký tự và không được để trống."
+                />
+              </label>
+              <span className="text-[10px] font-medium text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-800/80 px-1.5 py-0.5 rounded border border-slate-200/60 dark:border-slate-700/60">
+                Bắt buộc
+              </span>
+            </div>
             <div className="relative">
               <Icons.User
                 size={17}
@@ -260,9 +408,28 @@ export const SignUpView: React.FC = () => {
 
           {/* Work Email */}
           <div>
-            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
-              {t('signup.email_label')}
-            </label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className={`text-xs font-semibold flex items-center gap-1.5 transition-colors ${
+                isEmailError ? 'text-rose-600 dark:text-rose-400' : 'text-slate-700 dark:text-slate-300'
+              }`}>
+                <span>{t('signup.email_label')}</span>
+                <span className="text-rose-500 font-bold text-sm leading-none" title="Trường bắt buộc">*</span>
+                <FieldTooltip
+                  title="Ràng buộc Email"
+                  description="Email doanh nghiệp nhận thông báo đơn hàng, mã xác thực và phục hồi quyền truy cập quản trị."
+                  warning="Phải đúng định dạng RFC (vd: ten@novashop.vn) và chưa từng đăng ký trong hệ thống."
+                />
+              </label>
+              <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded border transition-colors ${
+                isEmailError
+                  ? 'text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800'
+                  : isEmailDirty && isEmailValid
+                  ? 'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800'
+                  : 'text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-800/80 border-slate-200/60 dark:border-slate-700/60'
+              }`}>
+                {isEmailError ? 'Email chưa hợp lệ' : isEmailDirty && isEmailValid ? 'Email hợp lệ ✓' : 'Định dạng email'}
+              </span>
+            </div>
             <div className="relative">
               <Icons.Mail
                 size={17}
@@ -274,6 +441,90 @@ export const SignUpView: React.FC = () => {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder={t('signup.email_placeholder')}
+                className={`w-full pl-10 pr-4 py-2.5 text-sm bg-slate-50 dark:bg-slate-800/90 border rounded-xl text-slate-900 dark:text-white outline-none transition-all ${
+                  isEmailError
+                    ? 'border-rose-400 focus:border-rose-500 focus:bg-white dark:focus:bg-slate-900'
+                    : 'border-slate-200 dark:border-slate-700 focus:border-indigo-500 focus:bg-white dark:focus:bg-slate-900'
+                }`}
+              />
+            </div>
+          </div>
+
+          {/* Contact Phone */}
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className={`text-xs font-semibold flex items-center gap-1.5 transition-colors ${
+                isPhoneError ? 'text-rose-600 dark:text-rose-400' : 'text-slate-700 dark:text-slate-300'
+              }`}>
+                <span>{t('signup.phone_label')}</span>
+                <span className="text-rose-500 font-bold text-sm leading-none" title="Trường bắt buộc">*</span>
+                <FieldTooltip
+                  title="Ràng buộc Số điện thoại"
+                  description="Số điện thoại di động dùng để nhận thông báo đơn hàng, mã OTP bảo mật và hỗ trợ kỹ thuật gian hàng."
+                  warning="Bắt buộc nhập, đúng định dạng số điện thoại (VD: 093832823 hoặc 0912 345 678)."
+                />
+              </label>
+              <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded border transition-colors ${
+                isPhoneError
+                  ? 'text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800'
+                  : isPhoneDirty && isPhoneValid
+                  ? 'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800'
+                  : 'text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-800/80 border-slate-200/60 dark:border-slate-700/60'
+              }`}>
+                {isPhoneError ? 'SĐT chưa hợp lệ' : isPhoneDirty && isPhoneValid ? 'SĐT hợp lệ ✓' : '8 - 11 số'}
+              </span>
+            </div>
+            <div className="relative">
+              <Icons.Phone
+                size={17}
+                className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
+              />
+              <input
+                type="tel"
+                required
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder={t('signup.phone_placeholder')}
+                className={`w-full pl-10 pr-4 py-2.5 text-sm bg-slate-50 dark:bg-slate-800/90 border rounded-xl text-slate-900 dark:text-white outline-none transition-all ${
+                  isPhoneError
+                    ? 'border-rose-400 focus:border-rose-500 focus:bg-white dark:focus:bg-slate-900'
+                    : 'border-slate-200 dark:border-slate-700 focus:border-indigo-500 focus:bg-white dark:focus:bg-slate-900'
+                }`}
+              />
+            </div>
+          </div>
+
+          {/* Contact Address */}
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                <span>{t('signup.address_label')}</span>
+                <span className="text-rose-500 font-bold text-sm leading-none" title="Trường bắt buộc">*</span>
+                <FieldTooltip
+                  title="Ràng buộc Địa chỉ"
+                  description="Địa chỉ đăng ký kinh doanh hoặc địa chỉ vận hành gian hàng thực tế của đại diện doanh nghiệp."
+                  warning="Bắt buộc nhập địa chỉ chi tiết (VD: Long Xuyên, An Giang)."
+                />
+              </label>
+              <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded border transition-colors ${
+                isAddressDirty
+                  ? 'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800'
+                  : 'text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-800/80 border-slate-200/60 dark:border-slate-700/60'
+              }`}>
+                {isAddressDirty ? 'Đã nhập ✓' : 'Địa chỉ'}
+              </span>
+            </div>
+            <div className="relative">
+              <Icons.MapPin
+                size={17}
+                className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
+              />
+              <input
+                type="text"
+                required
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
+                placeholder={t('signup.address_placeholder')}
                 className="w-full pl-10 pr-4 py-2.5 text-sm bg-slate-50 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white outline-none focus:border-indigo-500 focus:bg-white dark:focus:bg-slate-900 transition-all"
               />
             </div>
@@ -281,9 +532,21 @@ export const SignUpView: React.FC = () => {
 
           {/* Role Selector */}
           <div>
-            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
-              {t('signup.role_label')}
-            </label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                <span>{t('signup.role_label')}</span>
+                <span className="text-rose-500 font-bold text-sm leading-none" title="Trường bắt buộc">*</span>
+                <FieldTooltip
+                  title="Ràng buộc Phân quyền"
+                  description="Cấp quyền truy cập hệ thống. Ví dụ: SUPER_ADMIN (toàn quyền), SHOP_OWNER (quản lý chi nhánh, kho & nhân sự), CATEGORY_MANAGER (danh mục & nhãn hàng), WAREHOUSE (xuất nhập tồn kho)."
+                  warning="Quyền hạn quyết định các trang chức năng được truy cập. Hãy chọn đúng quyền của bạn."
+                  variant="info"
+                />
+              </label>
+              <span className="text-[10px] font-medium text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-800/80 px-1.5 py-0.5 rounded border border-slate-200/60 dark:border-slate-700/60">
+                Chọn vai trò
+              </span>
+            </div>
             <select
               value={roleKey}
               onChange={(e) => setRoleKey(e.target.value as RoleOptionKey)}
@@ -303,9 +566,28 @@ export const SignUpView: React.FC = () => {
           {/* Password & Confirm Password Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
-                {t('signup.password_label')}
-              </label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className={`text-xs font-semibold flex items-center gap-1.5 transition-colors ${
+                  isPasswordTooShort ? 'text-amber-600 dark:text-amber-400' : 'text-slate-700 dark:text-slate-300'
+                }`}>
+                  <span>{t('signup.password_label')}</span>
+                  <span className="text-rose-500 font-bold text-sm leading-none" title="Trường bắt buộc">*</span>
+                  <FieldTooltip
+                    title="Ràng buộc Mật khẩu"
+                    description="Mật khẩu mã hóa bảo vệ tài khoản quản trị và dữ liệu cửa hàng."
+                    warning="Tối thiểu từ 8 ký tự trở lên. Nên kết hợp chữ cái và số để nâng cao tính bảo mật."
+                  />
+                </label>
+                <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded border transition-colors ${
+                  isPasswordTooShort
+                    ? 'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800'
+                    : isPasswordDirty
+                    ? 'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800'
+                    : 'text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-800/80 border-slate-200/60 dark:border-slate-700/60'
+                }`}>
+                  {isPasswordTooShort ? 'Tối thiểu 8 ký tự' : '≥ 8 ký tự'}
+                </span>
+              </div>
               <div className="relative">
                 <Icons.Lock
                   size={16}
@@ -317,7 +599,11 @@ export const SignUpView: React.FC = () => {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full pl-9 pr-9 py-2.5 text-sm bg-slate-50 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white outline-none focus:border-indigo-500 focus:bg-white dark:focus:bg-slate-900 transition-all"
+                  className={`w-full pl-9 pr-9 py-2.5 text-sm bg-slate-50 dark:bg-slate-800/90 border rounded-xl text-slate-900 dark:text-white outline-none transition-all ${
+                    isPasswordTooShort
+                      ? 'border-amber-400 focus:border-amber-500 focus:bg-white dark:focus:bg-slate-900'
+                      : 'border-slate-200 dark:border-slate-700 focus:border-indigo-500 focus:bg-white dark:focus:bg-slate-900'
+                  }`}
                 />
                 <button
                   type="button"
@@ -330,9 +616,28 @@ export const SignUpView: React.FC = () => {
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
-                {t('signup.confirm_password_label')}
-              </label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className={`text-xs font-semibold flex items-center gap-1.5 transition-colors ${
+                  isConfirmMismatch ? 'text-rose-600 dark:text-rose-400' : 'text-slate-700 dark:text-slate-300'
+                }`}>
+                  <span>{t('signup.confirm_password_label')}</span>
+                  <span className="text-rose-500 font-bold text-sm leading-none" title="Trường bắt buộc">*</span>
+                  <FieldTooltip
+                    title="Ràng buộc Xác nhận mật khẩu"
+                    description="Nhập lại mật khẩu để tránh trường hợp bạn gõ nhầm ký tự trong ô mật khẩu."
+                    warning="Phải trùng khớp 100% với mật khẩu đã nhập ở ô bên cạnh."
+                  />
+                </label>
+                <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded border transition-colors ${
+                  isConfirmMismatch
+                    ? 'text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800'
+                    : isConfirmMatch
+                    ? 'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800'
+                    : 'text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-800/80 border-slate-200/60 dark:border-slate-700/60'
+                }`}>
+                  {isConfirmMismatch ? 'Chưa khớp' : isConfirmMatch ? 'Đã khớp ✓' : 'Khớp mật khẩu'}
+                </span>
+              </div>
               <div className="relative">
                 <Icons.Lock
                   size={16}
@@ -344,7 +649,11 @@ export const SignUpView: React.FC = () => {
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full pl-9 pr-3 py-2.5 text-sm bg-slate-50 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white outline-none focus:border-indigo-500 focus:bg-white dark:focus:bg-slate-900 transition-all"
+                  className={`w-full pl-9 pr-3 py-2.5 text-sm bg-slate-50 dark:bg-slate-800/90 border rounded-xl text-slate-900 dark:text-white outline-none transition-all ${
+                    isConfirmMismatch
+                      ? 'border-rose-400 focus:border-rose-500 focus:bg-white dark:focus:bg-slate-900'
+                      : 'border-slate-200 dark:border-slate-700 focus:border-indigo-500 focus:bg-white dark:focus:bg-slate-900'
+                  }`}
                 />
               </div>
             </div>
@@ -381,9 +690,18 @@ export const SignUpView: React.FC = () => {
                 type="checkbox"
                 checked={agreeTerms}
                 onChange={(e) => setAgreeTerms(e.target.checked)}
-                className="mt-0.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                className="mt-0.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
               />
-              <span className="leading-relaxed">{t('signup.agree_terms')}</span>
+              <span className="leading-relaxed inline-flex items-center gap-1">
+                <span>{t('signup.agree_terms')}</span>
+                <span className="text-rose-500 font-bold ml-0.5" title="Bắt buộc đồng ý điều khoản">*</span>
+                <FieldTooltip
+                  title="Ràng buộc Điều khoản"
+                  description="Thỏa thuận điều khoản dịch vụ và chính sách bảo mật của Market Mini Admin."
+                  warning="Bắt buộc phải tích chọn đồng ý thì mới có thể tạo tài khoản và kích hoạt gian hàng."
+                  position="top"
+                />
+              </span>
             </label>
           </div>
 

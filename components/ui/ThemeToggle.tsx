@@ -60,14 +60,14 @@ export const ThemeToggle: React.FC<ThemeToggleProps> = ({
     <button
       type="button"
       onClick={handleToggle}
-      className={`p-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors flex items-center gap-2 cursor-pointer ${className}`}
+      className={`p-1.5 sm:p-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors flex items-center gap-2 cursor-pointer shrink-0 ${className}`}
       title={isDark ? 'Chuyển sang chế độ Sáng (Light Mode)' : 'Chuyển sang chế độ Tối (Dark Mode)'}
       aria-label="Chuyển đổi giao diện Sáng / Tối"
     >
       {isDark ? (
-        <Icons.Sun size={19} className="text-amber-400 transition-transform hover:rotate-45" />
+        <Icons.Sun size={18} className="text-amber-400 transition-transform hover:rotate-45" />
       ) : (
-        <Icons.Moon size={19} className="text-slate-600 dark:text-slate-300 transition-transform hover:-rotate-12" />
+        <Icons.Moon size={18} className="text-slate-600 dark:text-slate-300 transition-transform hover:-rotate-12" />
       )}
       {showLabel && (
         <span className="text-xs font-semibold">

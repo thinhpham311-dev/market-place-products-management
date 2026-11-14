@@ -75,21 +75,22 @@ export const LanguageSwitcher: React.FC<{ className?: string }> = ({ className =
       <button
         type="button"
         onClick={() => setOpen((prev) => !prev)}
-        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-slate-100/80 dark:bg-slate-800/80 hover:bg-slate-200/70 dark:hover:bg-slate-700/80 border border-slate-200/70 dark:border-slate-700/70 text-xs font-bold text-slate-700 dark:text-slate-200 transition-colors cursor-pointer"
+        className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1.5 rounded-xl bg-slate-100/80 dark:bg-slate-800/80 hover:bg-slate-200/70 dark:hover:bg-slate-700/80 border border-slate-200/70 dark:border-slate-700/70 text-xs font-bold text-slate-700 dark:text-slate-200 transition-colors cursor-pointer shrink-0"
         title="Chuyển đổi ngôn ngữ / Switch Language"
+        aria-label="Chuyển đổi ngôn ngữ"
       >
         <span className="text-sm leading-none">{currentOption.flag}</span>
-        <span>{currentOption.code}</span>
+        <span className="hidden sm:inline">{currentOption.code}</span>
         <Icons.ChevronDown
           size={13}
-          className={`text-slate-400 transition-transform duration-200 ${
+          className={`text-slate-400 transition-transform duration-200 hidden sm:block ${
             open ? 'rotate-180' : ''
           }`}
         />
       </button>
 
       {open && (
-        <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 p-1.5 z-50 animate-in fade-in zoom-in-95">
+        <div className="fixed inset-x-3 top-16 max-w-xs ml-auto sm:absolute sm:top-full sm:inset-x-auto sm:right-0 sm:mt-2 w-56 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 p-1.5 z-50 animate-in fade-in zoom-in-95">
           {LANGUAGE_OPTIONS.map((opt) => {
             const isSelected = opt.id === lang;
             return (

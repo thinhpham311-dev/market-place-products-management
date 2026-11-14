@@ -1,13 +1,13 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import Link from 'next/link';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { setSidebarTheme, SidebarTheme } from '@/store/settings/themeSlice';
 import { useTranslation } from '@/lib/i18n/useTranslation';
 import { Icons } from '@/components/ui/Icons';
 import { SIDEBAR_THEMES } from './sidebar/sidebarThemes';
-import { SidebarBranchCard, SidebarFooterWidgets } from './sidebar/SidebarWidgets';
+import { SidebarBranchCard, SidebarContentWidgets } from './sidebar/SidebarWidgets';
 import { canManageCategoryAndBrand, isCategoryManager, isSuperAdmin } from '@/lib/auth/permissions';
 
 export type TabType =
@@ -115,24 +115,47 @@ export const Sidebar: React.FC<SidebarProps> = ({
     setMobileOpen(false);
   };
 
-  const sidebarContent = (
+  // Lock body scroll on mobile when drawer is open
+  useEffect(() => {
+    if (mobileOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [mobileOpen]);
+
+  // Close mobile drawer on Escape key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && mobileOpen) {
+        setMobileOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [mobileOpen, setMobileOpen]);
+
+  const renderSidebarContent = (isCollapsed: boolean, isMobile = false) => (
     <div className={`relative flex flex-col h-full select-none transition-colors duration-200 ${styles.container}`}>
       {/* Brand Header */}
       <div
-        className={`h-16 flex items-center justify-between border-b ${styles.headerBorder} ${
-          collapsed ? 'px-2 gap-1' : 'px-4 gap-3'
+        className={`h-16 flex items-center justify-between border-b shrink-0 ${styles.headerBorder} ${
+          isCollapsed ? 'px-2 gap-1' : 'px-4 gap-3'
         }`}
       >
         <Link
           href="/"
           onClick={() => handleSelectTab('overview')}
-          className={`flex items-center gap-3 ${collapsed ? 'shrink-0' : 'min-w-0 overflow-hidden'}`}
-          title={collapsed ? 'Market Mini Admin' : undefined}
+          className={`flex items-center gap-3 ${isCollapsed ? 'shrink-0' : 'min-w-0 overflow-hidden'}`}
+          title={isCollapsed ? 'Market Mini Admin' : undefined}
         >
           <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-500 flex items-center justify-center text-white font-bold text-xl shadow-lg shadow-indigo-500/20 shrink-0">
             <Icons.ShoppingBag size={20} className="text-white shrink-0" />
           </div>
-          {!collapsed && (
+          {!isCollapsed && (
             <div className="flex flex-col truncate">
               <span className={`font-bold text-base tracking-tight leading-tight ${styles.brandTitle}`}>
                 Market Mini Admin
@@ -142,100 +165,130 @@ export const Sidebar: React.FC<SidebarProps> = ({
           )}
         </Link>
 
-        {/* Collapse / Open toggle (desktop) - always visible */}
-        <button
-          type="button"
-          onClick={() => setCollapsed(!collapsed)}
-          className={`hidden md:flex items-center justify-center w-7 h-7 rounded-lg transition-colors cursor-pointer shrink-0 ${styles.iconBtn}`}
-          title={collapsed ? 'Mở rộng thanh điều hướng' : 'Thu gọn thanh điều hướng'}
-        >
-          <Icons.ChevronLeft
-            size={18}
-            className={`transition-transform duration-200 shrink-0 ${collapsed ? 'rotate-180' : ''}`}
-          />
-        </button>
-
-        {/* Close button (mobile) */}
-        <button
-          type="button"
-          onClick={() => setMobileOpen(false)}
-          className={`md:hidden p-1.5 rounded-lg shrink-0 ${styles.iconBtn}`}
-        >
-          <Icons.X size={20} />
-        </button>
-      </div>
-
-      {/* Store Quick Switcher */}
-      <SidebarBranchCard collapsed={collapsed} styles={styles} />
-
-      {/* Navigation Links */}
-      <div className="flex-1 py-4 px-3 space-y-1.5 overflow-y-auto custom-scrollbar">
-        {!collapsed && (
-          <p className={`px-3 text-[11px] font-semibold uppercase tracking-wider mb-2 ${styles.sectionLabel}`}>
-            {t('nav.sales_management')}
-          </p>
+        {/* Collapse / Open toggle (desktop only) */}
+        {!isMobile && (
+          <button
+            type="button"
+            onClick={() => setCollapsed(!collapsed)}
+            className={`hidden md:flex items-center justify-center w-7 h-7 rounded-lg transition-colors cursor-pointer shrink-0 ${styles.iconBtn}`}
+            title={collapsed ? 'Mở rộng thanh điều hướng' : 'Thu gọn thanh điều hướng'}
+            aria-label={collapsed ? 'Mở rộng thanh điều hướng' : 'Thu gọn thanh điều hướng'}
+          >
+            <Icons.ChevronLeft
+              size={18}
+              className={`transition-transform duration-200 shrink-0 ${collapsed ? 'rotate-180' : ''}`}
+            />
+          </button>
         )}
-        {navItems.map((item) => {
-          const Icon = item.icon;
-          const isActive = activeTab === item.id;
-          return (
-            <Link
-              key={item.id}
-              href={item.href}
-              onClick={() => handleSelectTab(item.id)}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all group relative cursor-pointer ${
-                isActive ? styles.navActive : styles.navInactive
-              } ${collapsed ? 'justify-center px-2' : 'justify-between'}`}
-              title={collapsed ? item.label : undefined}
-            >
-              <div className="flex items-center gap-3 truncate">
-                <Icon
-                  size={20}
-                  className={`shrink-0 transition-transform group-hover:scale-110 ${
-                    isActive ? styles.navIconActive : styles.navIconInactive
-                  }`}
-                />
-                {!collapsed && <span className="truncate">{item.label}</span>}
-              </div>
 
-              {!collapsed && item.badge !== null && (
-                <span
-                  className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
-                    item.badgeVariant === 'danger'
-                      ? 'bg-rose-500/20 text-rose-500 dark:text-rose-300 border border-rose-500/30'
-                      : item.badgeVariant === 'purple'
-                      ? 'bg-purple-500/20 text-purple-600 dark:text-purple-300 border border-purple-400/30'
-                      : item.badgeVariant === 'primary'
-                      ? 'bg-indigo-500/20 text-indigo-600 dark:text-indigo-300 border border-indigo-400/30'
-                      : styles.badgeDefault
-                  }`}
-                >
-                  {item.badge}
-                </span>
-              )}
-
-              {/* Tooltip on collapsed hover */}
-              {collapsed && (
-                <div className="fixed left-20 ml-2 px-2.5 py-1 bg-slate-900 text-white text-xs rounded-lg shadow-xl border border-slate-700 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity z-50 whitespace-nowrap">
-                  {item.label}
-                </div>
-              )}
-            </Link>
-          );
-        })}
+        {/* Close button (mobile drawer only) */}
+        {isMobile && (
+          <button
+            type="button"
+            onClick={() => setMobileOpen(false)}
+            className={`p-1.5 rounded-lg shrink-0 cursor-pointer ${styles.iconBtn}`}
+            title="Đóng thanh điều hướng"
+            aria-label="Đóng thanh điều hướng"
+          >
+            <Icons.X size={20} />
+          </button>
+        )}
       </div>
 
-      {/* Footer Widgets (Color Swatches, Sync Channels, Logout) */}
-      <SidebarFooterWidgets
-        collapsed={collapsed}
-        sidebarTheme={sidebarTheme}
-        onSelectTheme={(theme) => dispatch(setSidebarTheme(theme))}
-        styles={styles}
-        onLogout={() => {
-          setMobileOpen(false);
-          onLogout();
-        }}
-      />
+      {/* Store Quick Switcher (Fixed under header) */}
+      <div className="shrink-0">
+        <SidebarBranchCard collapsed={isCollapsed} styles={styles} />
+      </div>
+
+      {/* Scrollable Navigation & Widget Area */}
+      <div className="flex-1 min-h-0 py-3 px-3 space-y-3 overflow-y-auto custom-scrollbar">
+        {/* Navigation Links */}
+        <div>
+          {!isCollapsed && (
+            <p className={`px-3 text-[11px] font-semibold uppercase tracking-wider mb-2 ${styles.sectionLabel}`}>
+              {t('nav.sales_management')}
+            </p>
+          )}
+          <nav className="space-y-1">
+            {navItems.map((item) => {
+              const Icon = item.icon;
+              const isActive = activeTab === item.id;
+              return (
+                <Link
+                  key={item.id}
+                  href={item.href}
+                  onClick={() => handleSelectTab(item.id)}
+                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all group relative cursor-pointer ${
+                    isActive ? styles.navActive : styles.navInactive
+                  } ${isCollapsed ? 'justify-center px-2' : 'justify-between'}`}
+                  title={isCollapsed ? item.label : undefined}
+                >
+                  <div className="flex items-center gap-3 truncate">
+                    <Icon
+                      size={20}
+                      className={`shrink-0 transition-transform group-hover:scale-110 ${
+                        isActive ? styles.navIconActive : styles.navIconInactive
+                      }`}
+                    />
+                    {!isCollapsed && <span className="truncate">{item.label}</span>}
+                  </div>
+
+                  {!isCollapsed && item.badge !== null && (
+                    <span
+                      className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
+                        item.badgeVariant === 'danger'
+                          ? 'bg-rose-500/20 text-rose-500 dark:text-rose-300 border border-rose-500/30'
+                          : item.badgeVariant === 'purple'
+                          ? 'bg-purple-500/20 text-purple-600 dark:text-purple-300 border border-purple-400/30'
+                          : item.badgeVariant === 'primary'
+                          ? 'bg-indigo-500/20 text-indigo-600 dark:text-indigo-300 border border-indigo-400/30'
+                          : styles.badgeDefault
+                      }`}
+                    >
+                      {item.badge}
+                    </span>
+                  )}
+
+                  {/* Tooltip on collapsed hover */}
+                  {isCollapsed && (
+                    <div className="fixed left-20 ml-2 px-2.5 py-1 bg-slate-900 text-white text-xs rounded-lg shadow-xl border border-slate-700 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity z-50 whitespace-nowrap">
+                      {item.label}
+                    </div>
+                  )}
+                </Link>
+              );
+            })}
+          </nav>
+        </div>
+
+        {/* Extra Widgets in Scrollable Area (User card, Theme swatches, Sync status) */}
+        {!isCollapsed && (
+          <SidebarContentWidgets
+            sidebarTheme={sidebarTheme}
+            onSelectTheme={(theme) => dispatch(setSidebarTheme(theme))}
+            styles={styles}
+          />
+        )}
+      </div>
+
+      {/* Pinned Bottom Logout Bar */}
+      <div className={`p-3 border-t shrink-0 ${styles.headerBorder}`}>
+        <button
+          type="button"
+          onClick={() => {
+            setMobileOpen(false);
+            onLogout();
+          }}
+          className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
+            styles.logoutBtn
+          } ${isCollapsed ? 'justify-center px-2' : ''}`}
+          title={t('sidebar.logout')}
+          aria-label={t('sidebar.logout')}
+        >
+          <Icons.LogOut size={18} className="shrink-0" />
+          {!isCollapsed && <span>{t('sidebar.logout')}</span>}
+        </button>
+      </div>
     </div>
   );
 
@@ -247,24 +300,24 @@ export const Sidebar: React.FC<SidebarProps> = ({
           collapsed ? 'w-[84px]' : 'w-64'
         }`}
       >
-        {sidebarContent}
+        {renderSidebarContent(collapsed, false)}
       </aside>
 
       {/* Mobile Drawer Backdrop */}
       {mobileOpen && (
         <div
-          className="md:hidden fixed inset-0 bg-slate-950/70 backdrop-blur-sm z-40"
+          className="md:hidden fixed inset-0 bg-slate-950/70 backdrop-blur-sm z-40 transition-opacity"
           onClick={() => setMobileOpen(false)}
         />
       )}
 
-      {/* Mobile Drawer */}
+      {/* Mobile Drawer (Always full expanded content, never collapsed) */}
       <aside
-        className={`md:hidden fixed inset-y-0 left-0 w-72 max-w-[80vw] z-50 transform transition-transform duration-300 ease-in-out ${
+        className={`md:hidden fixed inset-y-0 left-0 w-72 sm:w-80 max-w-[85vw] h-dvh shadow-2xl z-50 transform transition-transform duration-300 ease-in-out ${
           mobileOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
-        {sidebarContent}
+        {renderSidebarContent(false, true)}
       </aside>
     </>
   );

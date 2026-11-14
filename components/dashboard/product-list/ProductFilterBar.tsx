@@ -131,7 +131,7 @@ export const ProductFilterBar: React.FC<ProductFilterBarProps> = ({
   }, [categories, products]);
 
   return (
-    <div className="sticky top-16 z-20 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md rounded-2xl border border-slate-200/80 dark:border-slate-800 p-4 shadow-sm space-y-4">
+    <div className="relative sm:sticky sm:top-16 z-20 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md rounded-2xl border border-slate-200/80 dark:border-slate-800 p-3 sm:p-4 shadow-sm space-y-3 sm:space-y-4">
       {/* Status quick tabs */}
       <div className="flex items-center justify-between gap-2 overflow-x-auto pb-1 custom-scrollbar border-b border-slate-100 dark:border-slate-800">
         <div className="flex items-center gap-1.5 shrink-0">

@@ -2,7 +2,7 @@ import { createSlice, PayloadAction } from "@reduxjs/toolkit";
 
 export type ThemeMode = "light" | "dark" | "system";
 export type SidebarTheme = "adaptive" | "indigo" | "emerald" | "violet" | "slate";
-export type StoreBranchId = "hn_main" | "hcm_south" | "dn_central" | "hp_port";
+export type StoreBranchId = string;
 
 export interface ThemeState {
   mode: ThemeMode;

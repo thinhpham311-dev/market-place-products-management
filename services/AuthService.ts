@@ -9,6 +9,7 @@ import {
 } from "@/constants/api/api.constant";
 
 export const NEXT_SIGNIN_API_ENDPOINT = "/api/shop/signin";
+export const NEXT_SIGNUP_API_ENDPOINT = "/v1/api/shop/signup";
 export const NEXT_SIGNOUT_API_ENDPOINT = "/api/shop/signout";
 export const NEXT_REFRESH_TOKEN_API_ENDPOINT = "/v1/api/shop/refreshtoken";
 export const NEXT_SHOP_PROFILE_API_ENDPOINT = "/v1/api/shop/profile";
@@ -66,12 +67,38 @@ export async function apiRefreshToken(data?: {
   });
 }
 
-export async function apiSignUp(data: IUser) {
-  return ApiService.fetchData({
-    url: "/sign-up",
-    method: "post",
-    data,
-  });
+export async function apiSignUp(
+  data: IUser & {
+    name?: string;
+    fullName?: string;
+    phoneNumber?: string;
+    address?: string;
+    roles?: string[];
+  }
+) {
+  const apiKey =
+    process.env.NEXT_PUBLIC_API_KEY || NEXT_PUBLIC_API_KEY;
+
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...(apiKey ? { [REQUEST_HEADER_API_KEY]: apiKey } : {}),
+  };
+
+  try {
+    return await axios.post(NEXT_SIGNUP_API_ENDPOINT, data, {
+      headers,
+      withCredentials: true,
+    });
+  } catch (err: unknown) {
+    const status = (err as { response?: { status?: number } })?.response?.status;
+    if (status === 404) {
+      return await axios.post("/api/shop/signup", data, {
+        headers,
+        withCredentials: true,
+      });
+    }
+    throw err;
+  }
 }
 
 export async function apiSignOut(data?: IUser) {

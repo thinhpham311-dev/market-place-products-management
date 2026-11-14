@@ -58,8 +58,8 @@ export const CategoryCard: React.FC<CategoryCardProps> = ({
     <div
       className={`rounded-2xl border transition-all flex flex-col justify-between ${
         level === 0
-          ? 'bg-white dark:bg-slate-900 border-slate-200/80 dark:border-slate-800 p-5 shadow-sm hover:border-indigo-500/40'
-          : 'bg-slate-50/80 dark:bg-slate-800/40 border-slate-200/70 dark:border-slate-700/70 p-3.5 hover:border-indigo-500/40'
+          ? 'bg-white dark:bg-slate-900 border-slate-200/80 dark:border-slate-800 p-4 sm:p-5 shadow-sm hover:border-indigo-500/40'
+          : 'bg-slate-50/80 dark:bg-slate-800/40 border-slate-200/70 dark:border-slate-700/70 p-3 sm:p-3.5 hover:border-indigo-500/40'
       }`}
     >
       <div>
@@ -225,7 +225,7 @@ export const CategoryCard: React.FC<CategoryCardProps> = ({
 
       {/* Nested Subcategories */}
       {hasChildren && expanded && (
-        <div className="mt-3.5 pl-3.5 sm:pl-5 border-l-2 border-indigo-200 dark:border-indigo-900/60 space-y-2.5">
+        <div className="mt-3.5 pl-2.5 sm:pl-5 border-l-2 border-indigo-200 dark:border-indigo-900/60 space-y-2.5">
           {children.map((child) => (
             <CategoryCard
               key={child.id}

@@ -4,6 +4,8 @@ import { UserState } from "./userSlice";
 export interface RegisteredAccount {
   email: string;
   password: string;
+  phone?: string;
+  address?: string;
   user: UserState;
   badgeColor: string;
   createdAt?: string;
@@ -17,11 +19,13 @@ export const DEFAULT_ACCOUNTS: RegisteredAccount[] = [
   {
     email: "admin@novashop.vn",
     password: "novashop",
+    phone: "0901234567",
     user: {
       id: "66f1a2b3c4d5e6f7a8b9c0d1",
       avatar: "SA",
       userName: "Admin Shop (Root)",
       email: "admin@novashop.vn",
+      phone: "0901234567",
       role: "SUPER_ADMIN",
       authority: ["SUPER_ADMIN", "admin"],
     },
@@ -30,11 +34,13 @@ export const DEFAULT_ACCOUNTS: RegisteredAccount[] = [
   {
     email: "owneradmin@novashop.vn",
     password: "novashop",
+    phone: "0909888999",
     user: {
       id: "66f1a2b3c4d5e6f7a8b9c0d8",
       avatar: "OA",
       userName: "Owner Admin",
       email: "owneradmin@novashop.vn",
+      phone: "0909888999",
       role: "SHOP_OWNER",
       authority: ["SHOP_OWNER"],
     },
@@ -43,11 +49,13 @@ export const DEFAULT_ACCOUNTS: RegisteredAccount[] = [
   {
     email: "owner@novashop.vn",
     password: "novashop",
+    phone: "0912345678",
     user: {
       id: "66f1a2b3c4d5e6f7a8b9c0d9",
       avatar: "SO",
       userName: "Trần Minh (Shop Owner)",
       email: "owner@novashop.vn",
+      phone: "0912345678",
       role: "SHOP_OWNER",
       authority: ["SHOP_OWNER", "owner"],
     },
@@ -56,11 +64,13 @@ export const DEFAULT_ACCOUNTS: RegisteredAccount[] = [
   {
     email: "category@novashop.vn",
     password: "123456",
+    phone: "0923456789",
     user: {
       id: "66f1a2b3c4d5e6f7a8b9c0d4",
       avatar: "CM",
       userName: "Category Manager",
       email: "category@novashop.vn",
+      phone: "0923456789",
       role: "CATEGORY_MANAGER",
       authority: ["CATEGORY_MANAGER"],
     },
@@ -69,11 +79,13 @@ export const DEFAULT_ACCOUNTS: RegisteredAccount[] = [
   {
     email: "catalog@novashop.vn",
     password: "123456",
+    phone: "0934567890",
     user: {
       id: "66f1a2b3c4d5e6f7a8b9c0d5",
       avatar: "CS",
       userName: "Catalog Specialist",
       email: "catalog@novashop.vn",
+      phone: "0934567890",
       role: "CATALOG_SPECIALIST",
       authority: ["CATALOG_SPECIALIST"],
     },
@@ -82,11 +94,13 @@ export const DEFAULT_ACCOUNTS: RegisteredAccount[] = [
   {
     email: "warehouse@novashop.vn",
     password: "123456",
+    phone: "0945678901",
     user: {
       id: "66f1a2b3c4d5e6f7a8b9c0d2",
       avatar: "KH",
       userName: "Trần Minh Kho",
       email: "warehouse@novashop.vn",
+      phone: "0945678901",
       role: "Kho vận - không có quyền Category/Brand",
       authority: ["warehouse", "inventory"],
     },
@@ -95,11 +109,13 @@ export const DEFAULT_ACCOUNTS: RegisteredAccount[] = [
   {
     email: "sale@novashop.vn",
     password: "123456",
+    phone: "0956789012",
     user: {
       id: "66f1a2b3c4d5e6f7a8b9c0d3",
       avatar: "SL",
       userName: "Lê Thu Hà",
       email: "sale@novashop.vn",
+      phone: "0956789012",
       role: "Vận hành Sàn - không có quyền Category/Brand",
       authority: ["sales", "marketing"],
     },

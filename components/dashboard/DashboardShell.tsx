@@ -125,6 +125,18 @@ export const DashboardShell: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   }, [currentTab, isAuthPage, dispatch]);
 
+  // Optimize tablet experience: auto-collapse sidebar on tablet screens (< 1024px)
+  useEffect(() => {
+    const handleResize = () => {
+      if (typeof window !== 'undefined' && window.innerWidth >= 768 && window.innerWidth < 1024) {
+        dispatch(setSidebarCollapsed(true));
+      }
+    };
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [dispatch]);
+
   const loadSpuAndCategories = useCallback(
     async (isManualRetry = false) => {
       if (!isHydrated || isCheckingAuth || !signedIn || isAuthPage || !accessToken) {
